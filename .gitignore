@@ -1,2 +1,4 @@
 /target
 README.html
+.env
+players.json
