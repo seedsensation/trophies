@@ -1,16 +1,14 @@
-use poise::serenity_prelude as serenity;
+pub use poise::serenity_prelude as serenity;
 use dotenv::dotenv;
-use tokio::time::{sleep, Duration};
-use std::fs;
 
-use serde::{Deserialize, Serialize};
-use serde_json::json;
+mod modules;
 
-
+use crate::modules::types::Player;
+use crate::modules::file_management;
 
 struct Data{} // user data, stored and accessible everywhere
 
-// i don't really know what these mean but it's in the docs so i'm putting it in here
+// define error and context
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
@@ -26,52 +24,18 @@ async fn age(
     Ok(())
 }
 
-#[derive(Serialize, Deserialize)]
-struct Player {
-    user_id: u64,
-    xp: i32,
-    lvl: i32,
-    prestige: i32,
-    prestige_achievements: Vec<String>,
-    title_segments: Vec<String>,
+
+
+
+
+
+
+fn player_from_id(id: u64) -> Option<Player> {
+    file_management::load().iter().find(|x| x.user_id == id).cloned()
 }
 
-impl Player {
-    fn title(&self) -> String {
-        return "hello".to_string()
-    }
-
-    async fn user_data(&self, ctx: Context<'_>) -> serenity::User {
-        serenity::UserId::new(self.user_id).to_user(ctx.http()).await.expect(&String::from("Failed to get user from ID {self.user_id}"))
-    }
-}
-
-
-fn new_player(id: u64) -> Player {
-    Player {
-        user_id: id,
-        xp: 0,
-        lvl: 1,
-        prestige: 0,
-        prestige_achievements: vec![],
-        title_segments: vec![],
-    }
-
-}
-
-fn save(players: &Vec<Player>) -> Result<(), Error> {
-    let j = serde_json::to_string(players).expect("Failed to convert to JSON");
-    return Ok(fs::write("players.json",j)?)
-
-}
-
-fn load() -> Vec<Player> {
-    let data = fs::read_to_string("players.json");
-    if data.is_err() {
-        return vec![]
-    }
-
-    serde_json::from_str(data.unwrap().as_str()).expect("Failed to parse JSON")
+async fn user_from_id(id: u64, ctx: Context<'_>) -> Option<serenity::User> {
+    Player::new(id).user_data(ctx).await
 }
 
 #[poise::command(slash_command, prefix_command)]
@@ -80,15 +44,6 @@ async fn register(ctx: Context<'_>) -> Result<(), Error> {
     // the ? means that it will only await if the result is NOT error, and otherwise
     // it will return the function, passing the error to the Result of the function
     poise::builtins::register_application_commands_buttons(ctx).await?;
-    Ok(())
-}
-
-// this command was purely written to test out how to get defer working
-#[poise::command(slash_command, prefix_command)]
-async fn wait_five_seconds(ctx: Context<'_>) -> Result<(), Error> {
-    ctx.defer().await?;
-    sleep(Duration::from_millis(5000)).await;
-    ctx.say("Five seconds have passed!").await?;
     Ok(())
 }
 
@@ -104,7 +59,7 @@ async fn achievement(
     let u = recipient.as_ref().unwrap_or_else(|| ctx.author());
     let author = ctx.author();
 
-    let mut players = load();
+    let mut players = file_management::load();
     let mut id_vector = players.iter().map(|x| x.user_id).collect::<Vec<_>>();
 
     let current_id = u.id.get();
@@ -117,7 +72,7 @@ async fn achievement(
         return Ok(())
     } else {
         if !id_vector.contains(&current_id) {
-            players.push(new_player(current_id));
+            players.push(Player::new(current_id));
             id_vector.push(current_id)
         }
     }
@@ -132,11 +87,11 @@ async fn achievement(
 
         let trophy = if xp <= 0 { "💩" } else if xp < 25 { "🥉" } else if xp < 50 { "🥈" } else { "🥇" };
 
-        let output = format!("{trophy} | {} _(Lv. {}, {} / {})_ just scored **{xp} XP** for: `{title}`!",u.display_name(), p.lvl, p.xp - p.lvl/100, p.lvl * 100);
+        let output = format!("{trophy} | {} {} _(Lv. {}, {} / {})_ just scored **{xp} XP** for: `{title}`!", p.title(), u.display_name(), p.lvl, p.xp - p.lvl/100, p.lvl * 100);
         ctx.say(output).await?;
     }
 
-    save(&players).expect("Failed to save");
+    file_management::save(&players).expect("Failed to save");
 
     Ok(())
 }
@@ -153,7 +108,6 @@ async fn main() {
             commands: vec![
                 age(),
                 register(),
-                wait_five_seconds(),
                 achievement()
             ],
             ..Default::default()
