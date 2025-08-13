@@ -8,6 +8,9 @@ This is my discord bot for getting achievements with my friends :D
 - [X]  XP bar - you can level up
 - [X]  once you get sufficiently high, you can *prestige*, resetting your 
        XP to 0, and granting you a permanent title
+- [ ]  Balance XP gain & prestige bonuses
+- [ ]  Allow you to edit titles once obtained?
+- [ ]  Allow you to give XP to others as a gift?
 
 ### Setup
 It should install the dependencies itself with `cargo build` or `cargo run`.  
