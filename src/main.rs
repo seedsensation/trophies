@@ -42,11 +42,6 @@ async fn update_title(ctx: Context<'_>) -> Result<(),Error> {
                  .ephemeral(true)).await?;
         return Ok(())
     }
-    // let menu = serenity::CreateActionRow::SelectMenu(
-    //     CreateSelectMenu::new("selected_title"),
-
-    // );
-
     Ok(())
 }
                   

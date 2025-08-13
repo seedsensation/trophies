@@ -232,7 +232,6 @@ pub mod player_data {
     /// It only saves the file and runs the second check if the first check fails.
     /// **Panics if the second check fails.**
     ///
-    ///
     pub fn verify_player(ctx: Context<'_>, id: Option<u64>) {
         let u_id = id.unwrap_or_else(|| ctx.author().id.get());
         let mut players = file_management::load();
