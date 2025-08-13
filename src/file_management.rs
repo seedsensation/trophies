@@ -1,10 +1,9 @@
-use crate::modules::player_data::Player;
-use crate::Error;
+use crate::player_data::Player;
 use std::fs;
 
-pub fn save(players: &Vec<Player>) -> Result<(), Error> {
+pub fn save(players: &Vec<Player>) {
     let j = serde_json::to_string(players).expect("Failed to convert to JSON");
-    return Ok(fs::write("players.json",j)?)
+    fs::write("players.json",j).expect("Failed to save file");
 
 }
 

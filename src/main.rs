@@ -8,7 +8,6 @@ mod types;
 mod file_management;
 
 use types::player_data;
-use commands::*;
 
 struct Data{} // user data, stored and accessible everywhere
 
@@ -16,32 +15,6 @@ struct Data{} // user data, stored and accessible everywhere
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
-
-/// Displays an account's creation date.
-#[poise::command(slash_command, prefix_command)]
-async fn age(
-    ctx: Context<'_>,
-    #[description = "Selected User"] user: Option<serenity::User>,
-) -> Result<(), Error> {
-    let u = user.as_ref().unwrap_or_else(|| ctx.author());
-    let response = format!("{}'s account was created at {}", u.name, u.created_at());
-    ctx.say(response).await?;
-    Ok(())
-}
-
-async fn user_from_id(id: u64, ctx: Context<'_>) -> Option<serenity::User> {
-    player_data::Player::new(id).user_data(ctx).await
-}
-
-/// Reregister application commands with Discord.
-#[poise::command(slash_command, prefix_command)]
-async fn register(ctx: Context<'_>) -> Result<(), Error> {
-    // register_application_commands_buttons returns Result<(), Error> -
-    // the ? means that it will only await if the result is NOT error, and otherwise
-    // it will return the function, passing the error to the Result of the function
-    poise::builtins::register_application_commands_buttons(ctx).await?;
-    Ok(())
-}
 
 
 
@@ -83,11 +56,10 @@ async fn main() {
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![
-                age(),
-                register(),
-                achievement::achievement(),
-                level::level(),
-                prestige::prestige(),
+                commands::register(),
+                commands::achievement(),
+                commands::level(),
+                commands::prestige(),
             ],
             ..Default::default()
 

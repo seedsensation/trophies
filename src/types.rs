@@ -2,8 +2,8 @@ pub mod player_data {
     use crate::{
         Serialize,
         Deserialize,
-        serenity,
         Context,
+        serenity,
         file_management,
         cmp,
     };
@@ -54,14 +54,19 @@ pub mod player_data {
             self.xp += self.xp_change(xp);
         }
 
-        pub fn xp_threshold_level(&self, level: Option<i64>) -> i64 {
-            println!("Debug: Threshold for level {}: {}",level.unwrap_or(self.lvl),2^level.unwrap_or(self.lvl - 1));
-            (50.0 * ((XP_EXPONENT).powf(level.unwrap_or(self.lvl - 1) as f64))) as i64
+        pub fn xp_threshold_level(&self, _level: Option<i64>) -> i64 {
+            // println!("Debug: Threshold for level {}: {}",level.unwrap_or(self.lvl),2^level.unwrap_or(self.lvl - 1));
+            // (50.0 * ((XP_EXPONENT).powf(level.unwrap_or(self.lvl - 1) as f64))) as i64
+            return (100.0 * (self.prestige / 2.0).max(1.0)) as i64;
         }
         pub fn xp_threshold(&self) -> i64 {
             self.xp_threshold_level(None)
         }
 
+        /// Checks whether a Player has enough XP to level up.
+        ///
+        /// First, checks to see if they have negative XP.
+        /// If the XP is below 0, then it
         pub async fn lvl_check(&mut self, ctx: Option<Context<'_>>) -> Vec<String> {
             let mut output = vec![];
             let old_lvl = self.lvl;
@@ -101,6 +106,18 @@ pub mod player_data {
             return output;
         }
 
+        /// Return an XP bar, as a string.
+        ///
+        /// **Example**
+        /// ```
+        /// Player.xp = 43;
+        /// assert_eq!(Player.xp_threshold(), 50)
+        /// ```
+        /// **Output**
+        /// ```text
+        /// ████████░░
+        /// ```
+        ///
         pub fn xp_bar(&self) -> String {
             let progress = ((self.xp as f64 / self.xp_threshold() as f64) * 10.0) as usize;
 
@@ -112,21 +129,41 @@ pub mod player_data {
         }
     }
 
+    /// Find a Player object from their ID.
+    ///
+    /// Currently unused, as it does not verify the player's presence beforehand,
+    /// making it less safe than just running it manually.
     pub fn find_player_by_id(id: u64) -> Player {
         let players = file_management::load();
-        players.iter().find(|x| x.user_id == id).expect("User not present in players despite verification").clone();
+        players.iter().find(|x| x.user_id == id).expect("User not present in players.").clone()
     }
 
-    pub fn verify_player(ctx: Context<'_>, id: Option<u64>) -> Result<(),Error> {
+    /// Verify whether a player is present inside `players.json`.
+    ///
+    /// Check through the saved file, to see if the given ID is present.
+    /// If it isn't, save it back to the file, and run the check again.
+    /// **Panics if it is not present after the second check.**
+    ///
+    /// It only saves the file and runs the second check if the first check fails.
+    ///
+    pub fn verify_player(ctx: Context<'_>, id: Option<u64>) {
         let u_id = id.unwrap_or_else(|| ctx.author().id.get());
         let mut players = file_management::load();
         let id_vector = players.iter().map(|x| x.user_id).collect::<Vec<_>>();
 
         if !id_vector.contains(&u_id) {
             players.push(Player::new(u_id));
+
+            // only needs to save if a change needs to be made
+            file_management::save(&players);
+
+            // assert that the loaded file, mapped for ids, contains the id that we're looking for
+            assert!(file_management::load().iter().map(|x| x.user_id).collect::<Vec<_>>().contains(&u_id));
+            // if it doesn't, then all hope is lost
         }
 
-        file_management::save(&players)
+
 
     }
+
 }
