@@ -1,4 +1,4 @@
-use crate::modules::types::Player;
+use crate::modules::player_data::Player;
 use crate::Error;
 use std::fs;
 

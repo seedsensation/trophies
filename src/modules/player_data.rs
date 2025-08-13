@@ -1,0 +1,132 @@
+use poise::serenity_prelude as serenity;
+use crate::{Context, Error, PRESTIGE_THRESHOLD, XP_EXPONENT, PRESTIGE_MULTIPLIER, PRESTIGE_MINIMUM};
+use serde::{Deserialize, Serialize};
+use crate::modules::file_management;
+use crate::cmp;
+
+
+#[derive(Serialize, Deserialize, Clone)]
+#[non_exhaustive]
+pub struct Player {
+    pub user_id: u64,
+    pub xp: i64,
+    pub lvl: i64,
+    pub prestige: f64,
+    prestige_achievements: Vec<String>,
+    pub title_segments: Vec<String>,
+}
+
+
+impl Player {
+    pub fn title(&self) -> String {
+        let mut output: String = "".to_owned();
+        for i in &self.title_segments {
+            output.push_str(i);
+            output.push_str(" ");
+        }
+        output
+    }
+
+    pub async fn user_data(&self, ctx: Context<'_>) -> Option<serenity::User> {
+        serenity::UserId::new(self.user_id).to_user(ctx.http()).await.ok()
+    }
+    pub fn new(id: u64) -> Player {
+        Player {
+            user_id: id,
+            xp: 0,
+            lvl: 1,
+            prestige: 1.0,
+            prestige_achievements: vec![],
+            title_segments: vec![],
+        }
+
+    }
+
+    pub fn verify_player(ctx: Context<'_>, id: Option<u64>) -> Result<(),Error> {
+        let u_id = id.unwrap_or_else(|| ctx.author().id.get());
+        let mut players = file_management::load();
+        let id_vector = players.iter().map(|x| x.user_id).collect::<Vec<_>>();
+
+        if !id_vector.contains(&u_id) {
+            players.push(Player::new(u_id));
+        }
+
+        file_management::save(&players)
+
+    }
+
+    pub fn find_player_by_id(id: u64) -> Player {
+        let players = file_management::load();
+        players.iter().find(|x| x.user_id == id).expect("User not present in Players despite verification").clone()
+    }
+
+
+
+    pub fn xp_change(&self, xp: i64) -> i64 {
+        (xp as f64 * (1.0 + (self.prestige * PRESTIGE_MULTIPLIER))) as i64
+    }
+
+    pub fn add_xp(&mut self, xp: i64) {
+        self.xp += self.xp_change(xp);
+    }
+
+    pub fn xp_threshold_level(&self, level: Option<i64>) -> i64 {
+        println!("Debug: Threshold for level {}: {}",level.unwrap_or(self.lvl),2^level.unwrap_or(self.lvl - 1));
+        (50.0 * ((XP_EXPONENT).powf(level.unwrap_or(self.lvl - 1) as f64))) as i64
+    }
+    pub fn xp_threshold(&self) -> i64 {
+        self.xp_threshold_level(None)
+    }
+
+
+
+    pub async fn lvl_check(&mut self, ctx: Option<Context<'_>>) -> Vec<String> {
+        let mut output = vec![];
+        let old_lvl = self.lvl;
+
+
+
+        let username: String =
+            if ctx.is_some() {
+                self.user_data(ctx.unwrap()).await.expect("Failed to find user data").display_name().to_owned()
+            } else {
+                "[Unknown Username]".to_owned()
+            };
+
+
+        while self.xp < 0 && self.lvl > 1 {
+            self.lvl -= 1;
+            self.xp += self.xp_threshold();
+            output.push(format!("{username} lost a level! They are now at Lv. {}!", self.lvl));
+        }
+
+        while self.xp >= self.xp_threshold() {
+            self.xp -= self.xp_threshold();
+            self.lvl += 1;
+            output.push(format!("{username} gained a level! They are now at Lv. {}!", self.lvl));
+        }
+
+        if self.lvl >= cmp::max((self.prestige * PRESTIGE_THRESHOLD) as i64, PRESTIGE_MINIMUM as i64) as i64 && old_lvl < (self.prestige * PRESTIGE_THRESHOLD) as i64 {
+            output.push("You are now eligible to Prestige! Use `/prestige` to find out more.".to_string())
+        }
+
+        if output.len() > 10 {
+            output[1] = "...".to_string();
+        }
+        while output.len() > 10 {
+            output.remove(2);
+        }
+        return output;
+    }
+
+    pub fn xp_bar(&self) -> String {
+        let progress = ((self.xp as f64 / self.xp_threshold() as f64) * 10.0) as usize;
+
+        let xp_gotten = "█".repeat(progress);
+        let xp_left = "░".repeat(10-progress);
+
+        format!("{xp_gotten}{xp_left}")
+
+    }
+
+}
