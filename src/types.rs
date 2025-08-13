@@ -8,22 +8,76 @@ pub mod player_data {
         cmp,
     };
 
+    /// Used to calculate the required level to be able to prestige.
+    ///
+    /// Uses the following formula:
+    /// ```
+    /// max(self.prestige * PRESTIGE_THRESHOLD, PRESTIGE_MINIMUM)
+    /// ```
     pub const PRESTIGE_THRESHOLD: f64 = 0.5;
-    pub const XP_EXPONENT: f64 = 1.05;
+
+    /// The minimum level at which you are able to prestige
     pub const PRESTIGE_MINIMUM: f64 = 10.0;
+
+    /// The amount by which prestige multiplies your XP
     pub const PRESTIGE_MULTIPLIER: f64 = 0.2;
 
+
+    /// Contains all required info about a given player.
+    ///
+    /// Can be cross-referenced with the Discord API using
+    /// the [`user_id`](Self::user_id) property.
+    ///
+    /// Players are stored in a vector, accessible from a
+    /// file by using [`file_management::load()`], and saved
+    /// using [`file_management::save()`]. Whenever you access
+    /// the vector created by [`load()`](file_management::load()),
+    /// use [`verify_player()`](verify_player) first, to ensure that the
+    /// player is present - otherwise it will panic.
     #[derive(Serialize,Deserialize,Clone)]
     #[non_exhaustive]
     pub struct Player {
+
+        /// The ID of the user. Should be entirely unique.
+        ///
+        /// Uniqueness of `user_id` is checked whenever saved.
         pub user_id: u64,
+
+        /// The user's XP. Increased by using
+        /// [`/achievement`](crate::commands::achievement).
+        ///
         pub xp: i64,
+
+        /// The player's current level.
+        ///
+        /// Increases whenever XP passes
+        /// [`xp_threshold`](Self::xp_threshold), and
+        /// decreases whenever it goes below 0.
         pub lvl: i64,
+
+        /// The player's current prestige level.
+        ///
+        /// Multiplies all XP gained using
+        /// [`xp_change`](Self::xp_change).
+        /// Can be increased by using the
+        /// [`/prestige`](crate::commands::prestige) command.
+        ///
+        /// New prestige is multiplicative, not additive,
+        /// so your Prestige grows exponentially.
         pub prestige: f64,
+
+        /// Each word in your Title.
+        ///
+        /// The entire title is calculated using
+        /// [`title()`](Self::title), and can be edited using
+        /// the
         pub title_segments: Vec<String>,
     }
 
     impl Player {
+
+        /// Calculates a title for the object, using its
+        /// [`title_segments`](Self::title_segments) attribute.
         pub fn title(&self) -> String {
             let mut output: String = "".to_owned();
             for i in &self.title_segments {
@@ -33,9 +87,14 @@ pub mod player_data {
             output
         }
 
+        /// Returns Discord user from Player
+        ///
+        /// Requires a `ctx` object in order to access Discord's servers.
         pub async fn user_data(&self, ctx: Context<'_>) -> Option<serenity::User> {
             serenity::UserId::new(self.user_id).to_user(ctx.http()).await.ok()
         }
+
+        /// Initialise a new [`Player`] object, from a given ID.
         pub fn new(id: u64) -> Player {
             Player {
                 user_id: id,
@@ -46,27 +105,54 @@ pub mod player_data {
             }
         }
 
+        /// Calculates how much XP you should earn, from a base number.
+        ///
+        /// The formula for the XP is:
+        /// ```
+        /// xp * (1 + (self.prestige * PRESTIGE_MULTIPLIER))
+        /// ```
+        ///
         pub fn xp_change(&self, xp: i64) -> i64 {
             (xp as f64 * (1.0 + (self.prestige * PRESTIGE_MULTIPLIER))) as i64
         }
 
+        /// Adds XP, calculated using [`xp_change`](Self::xp_change).
         pub fn add_xp(&mut self, xp: i64) {
             self.xp += self.xp_change(xp);
         }
 
-        pub fn xp_threshold_level(&self, _level: Option<i64>) -> i64 {
+        /// Checks how much XP you need to level up.
+        ///
+        /// Uses this formula:
+        /// ```
+        /// 100.0 * (self.prestige * PRESTIGE_MULTIPLIER * 0.5).max(1.0)
+        /// ```
+        ///
+        /// It scales with prestige ([half as fast as XP scales](Self::xp_change)),
+        /// *to a minimum of 1*. This is so that the threshold is, *at minimum*, 100.
+        ///
+        /// Originally was going to scale exponentially, but I discovered that it
+        /// would make it basically impossible to prestige after your third prestige.
+        /// (In one test, it required billions of XP to reach a single level past level
+        /// 60, and it required reaching level 2000 to be able to prestige 😭)
+
+        pub fn xp_threshold(&self) -> i64 {
             // println!("Debug: Threshold for level {}: {}",level.unwrap_or(self.lvl),2^level.unwrap_or(self.lvl - 1));
             // (50.0 * ((XP_EXPONENT).powf(level.unwrap_or(self.lvl - 1) as f64))) as i64
-            return (100.0 * (self.prestige / 2.0).max(1.0)) as i64;
-        }
-        pub fn xp_threshold(&self) -> i64 {
-            self.xp_threshold_level(None)
+            return (100.0 * ( self.prestige * PRESTIGE_MULTIPLIER * 0.5 ).max(1.0)) as i64;
         }
 
-        /// Checks whether a Player has enough XP to level up.
+        /// Checks whether a Player has enough [`XP`](Self::xp) to level up.
         ///
         /// First, checks to see if they have negative XP.
-        /// If the XP is below 0, then it
+        /// If the XP is below 0, then it removes a level,
+        /// adds XP back, and repeats, until the XP is in
+        /// the positive again.
+        ///
+        /// Then, it does the same, but in reverse.
+        /// If the XP is above [`xp_threshold`](Self::xp_threshold), then it
+        /// removes XP, increments the level, and repeats,
+        /// until the XP is below [`xp_threshold`](Self::xp_threshold) again.
         pub async fn lvl_check(&mut self, ctx: Option<Context<'_>>) -> Vec<String> {
             let mut output = vec![];
             let old_lvl = self.lvl;
@@ -142,9 +228,10 @@ pub mod player_data {
     ///
     /// Check through the saved file, to see if the given ID is present.
     /// If it isn't, save it back to the file, and run the check again.
-    /// **Panics if it is not present after the second check.**
     ///
     /// It only saves the file and runs the second check if the first check fails.
+    /// **Panics if the second check fails.**
+    ///
     ///
     pub fn verify_player(ctx: Context<'_>, id: Option<u64>) {
         let u_id = id.unwrap_or_else(|| ctx.author().id.get());
@@ -165,5 +252,7 @@ pub mod player_data {
 
 
     }
+
+
 
 }

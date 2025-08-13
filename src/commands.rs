@@ -1,13 +1,43 @@
+//! When adding a slash command, add the function itself here,
+//! then add a second function to [slash_commands], that points
+//! back here. That'll allow you to document it separately.
+
+
 use crate::{ Context, Error, player_data, cmp, file_management, serenity };
 
 /// Reset your progress, with an advantage.
-/// # Panics
-/// - If [`player_data::verify_player`] fails to verify
-#[poise::command(slash_command, prefix_command)]
+///
+/// You can only prestige if you have a high enough level -
+/// threshold is calculated by:
+/// ```
+/// cmp::max(prestige * player_data::PRESTIGE_THRESHOLD, player_data::PRESTIGE_MINIMUM)
+/// ```
+///
+/// IF you have a high enough level, it asks for confirmation, with a
+/// confirm and deny button.
+/// If you deny, it deletes the message.
+///
+/// If you confirm, it triggers the Prestige.
+///
+/// It adds your chosen title to your list of titles,,
+/// multiplies your current prestige by your new level of prestige,
+/// and sets your level and XP back to 0``
+///
+/// If you have a high enough level, it asks for confirmation, with a
+/// confirm and deny button.
+/// If you deny, it deletes the message.
+///
+/// If you confirm, it triggers the Prestige.
+///
+/// It adds your chosen title to your list of titles,,
+/// multiplies your current prestige by your new level of prestige,
+/// and sets your level and XP back to 0.
+///
 pub async fn prestige(
     ctx: Context<'_>,
-    #[description="A new word to add to your Title."] title: String,
+    title: String,
 ) -> Result<(),Error> {
+
 
     player_data::verify_player(ctx, Some(ctx.author().id.get()));
 
@@ -121,10 +151,9 @@ pub async fn prestige(
 
 
 /// Check your current XP, Level and Prestige.
-#[poise::command(slash_command, prefix_command)]
 pub async fn level(
     ctx: Context<'_>,
-    #[description = "Selected User"] user: Option<serenity::User>,
+    user: Option<serenity::User>,
 ) -> Result<(), Error> {
     let u = user.as_ref().unwrap_or_else(|| ctx.author());
 
@@ -159,12 +188,17 @@ pub async fn level(
 }
 
 /// Complete an Achievement, and gain XP.
-#[poise::command(slash_command, prefix_command)]
+///
+/// Accepts a title, an XP number, and a recipient (optional).
+///
+/// Loads the information of the recipient from the JSON file,
+/// edits it to update the xp, then runs
+/// [`lvl_check()`](player_data::lvl_check).
 pub async fn achievement(
     ctx: Context<'_>,
-    #[description = "Title of your achievement"] title: String,
-    #[description = "XP Achieved"] xp: i64,
-    #[description = "Recipient of Achievement"] recipient: Option<serenity::User>,
+    title: String,
+    xp: i64,
+    recipient: Option<serenity::User>,
 ) -> Result<(),Error> {
 
     let u = recipient.as_ref().unwrap_or_else(|| ctx.author());
@@ -217,9 +251,23 @@ pub async fn achievement(
     Ok(())
 }
 
-/// Reregister application commands with Discord.
-#[poise::command(slash_command, prefix_command)]
-pub async fn register(ctx: Context<'_>) -> Result<(), Error> {
-    poise::builtins::register_application_commands_buttons(ctx).await?;
+
+/// Edit your existing titles
+pub async fn update_title(ctx: Context<'_>) -> Result<(),Error> {
+
+    let players = file_management::load();
+    let p = players.iter().find(|x| x.user_id == ctx.author().id.get()).expect("User not present in Players despite verification").clone();
+
+    if p.title_segments.len() == 0 {
+        ctx.send(poise::CreateReply::default()
+                 .content("You do not have a title to edit.")
+                 .ephemeral(true)).await?;
+        return Ok(())
+    }
+    // let menu = serenity::CreateActionRow::SelectMenu(
+    //     CreateSelectMenu::new("selected_title"),
+
+    // );
+
     Ok(())
 }

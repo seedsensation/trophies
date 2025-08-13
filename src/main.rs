@@ -6,6 +6,7 @@ use serde::{Serialize, Deserialize};
 mod commands;
 mod types;
 mod file_management;
+mod slash_commands;
 
 use types::player_data;
 
@@ -15,6 +16,16 @@ struct Data{} // user data, stored and accessible everywhere
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
+
+/// Reregister application commands with Discord.
+#[poise::command(slash_command, prefix_command)]
+async fn register(ctx: Context<'_>) -> Result<(), Error> {
+    // register_application_commands_buttons returns Result<(), Error> -
+    // the ? means that it will only await if the result is NOT error, and otherwise
+    // it will return the function, passing the error to the Result of the function
+    poise::builtins::register_application_commands_buttons(ctx).await?;
+    Ok(())
+}
 
 
 
@@ -56,10 +67,10 @@ async fn main() {
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![
-                commands::register(),
-                commands::achievement(),
-                commands::level(),
-                commands::prestige(),
+                slash_commands::register(),
+                slash_commands::achievement(),
+                slash_commands::level(),
+                slash_commands::prestige(),
             ],
             ..Default::default()
 
