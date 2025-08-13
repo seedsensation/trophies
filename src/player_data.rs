@@ -1,9 +1,19 @@
-use poise::serenity_prelude as serenity;
-use crate::{Context, Error, PRESTIGE_THRESHOLD, XP_EXPONENT, PRESTIGE_MULTIPLIER, PRESTIGE_MINIMUM};
-use serde::{Deserialize, Serialize};
-use crate::lib::*;
-use crate::cmp;
+use crate::{Serialize, Deserialize, serenity, Context};
 
+const PRESTIGE_THRESHOLD: f64 = 0.5;
+const XP_EXPONENT: f64 = 1.05;
+const PRESTIGE_MINIMUM: f64 = 10.0;
+const PRESTIGE_MULTIPLIER: f64 = 0.2;
+
+#[derive(Serialize,Deserialize,Clone)]
+#[non_exhaustive]
+pub struct Player {
+    pub user_id: u64,
+    pub xp: i64,
+    pub lvl: i64,
+    pub prestige: f64,
+    pub title_segments: Vec<String>,
+}
 
 impl Player {
     pub fn title(&self) -> String {
@@ -18,26 +28,16 @@ impl Player {
     pub async fn user_data(&self, ctx: Context<'_>) -> Option<serenity::User> {
         serenity::UserId::new(self.user_id).to_user(ctx.http()).await.ok()
     }
+
     pub fn new(id: u64) -> Player {
         Player {
             user_id: id,
             xp: 0,
             lvl: 1,
             prestige: 1.0,
-            prestige_achievements: vec![],
             title_segments: vec![],
         }
-
     }
-
-
-
-    pub fn find_player_by_id(id: u64) -> Player {
-        let players = file_management::load();
-        players.iter().find(|x| x.user_id == id).expect("User not present in Players despite verification").clone()
-    }
-
-
 
     pub fn xp_change(&self, xp: i64) -> i64 {
         (xp as f64 * (1.0 + (self.prestige * PRESTIGE_MULTIPLIER))) as i64
@@ -51,11 +51,10 @@ impl Player {
         println!("Debug: Threshold for level {}: {}",level.unwrap_or(self.lvl),2^level.unwrap_or(self.lvl - 1));
         (50.0 * ((XP_EXPONENT).powf(level.unwrap_or(self.lvl - 1) as f64))) as i64
     }
+
     pub fn xp_threshold(&self) -> i64 {
         self.xp_threshold_level(None)
     }
-
-
 
     pub async fn lvl_check(&mut self, ctx: Option<Context<'_>>) -> Vec<String> {
         let mut output = vec![];
@@ -105,5 +104,22 @@ impl Player {
         format!("{xp_gotten}{xp_left}")
 
     }
+}
+
+pub fn find_player_by_id(id: u64) -> Player {
+    let players = file_management::load();
+    players.iter().find(|x| x.user_id == id).expect("User not present in palyers despite verification").clone();
+}
+
+pub fn verify_player(ctx: Context<'_>, id: Option<u64>) -> Result<(),Error> {
+    let u_id = id.unwrap_or_else(|| ctx.author().id.get());
+    let mut players = file_management::load();
+    let id_vector = players.iter().map(|x| x.user_id).collect::<Vec<_>>();
+
+    if !id_vector.contains(&u_id) {
+        players.push(Player::new(u_id));
+    }
+
+    file_management::save(&players)
 
 }
