@@ -34,7 +34,8 @@ pub async fn achievement(
     #[description = "XP Achieved"] xp: i64,
     #[description = "Recipient of Achievement"] recipient: Option<serenity::User>,
 ) -> Result<(),Error> {
-    commands::achievement(ctx, title, xp, recipient).await
+    println!("RECEIVED ACHIEVEMENT COMMAND - {xp}");
+    commands::achievement(ctx, title, xp as i128, recipient).await
 }
 
 /// Reregister application commands with Discord.

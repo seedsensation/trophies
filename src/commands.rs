@@ -3,7 +3,7 @@
 //! back here. That'll allow you to document it separately.
 
 
-use crate::{ Context, Error, player_data, cmp, file_management, serenity };
+use crate::{ Context, Error, player_data, cmp, file_management, serenity, functions };
 
 /// Reset your progress, with an advantage.
 ///
@@ -122,18 +122,28 @@ pub async fn prestige(
         };
 
         if acceptance {
-            reply.edit(ctx, poise::CreateReply::default()
-                    .content(format!("{} has Prestiged{}, and now has {:.2} Prestige Points!",
-                                        ctx.author().display_name(),
-                                        if p.prestige == 1.0 { " for the first time" } else { "" },
-                                        prestige_points * p.prestige
-            ))).await?;
-            p.prestige = p.prestige * prestige_points;
+            let first_time = p.prestige == 1.0;
+            p.prestige = match functions::overflow_check(||p.prestige * prestige_points) {
+                functions::Overflows::Float | functions::Overflows::Panic => f64::MAX,
+                functions::Overflows::Safe => p.prestige * prestige_points,
+            };
+            if p.prestige == f64::MAX {
+                reply.edit(ctx, poise::CreateReply::default()
+                        .content(format!("Congratulations! {} has won the Achievements Game! It is literally impossible for your prestige to get any higher!",
+                                            ctx.author().display_name(),
+                ))).await?;
+            }
             p.prestige_threshold = p.lvl;
             p.lvl = 1;
             p.xp = 0;
             p.title_segments.push(title);
 
+            reply.edit(ctx, poise::CreateReply::default()
+                    .content(format!("{} has Prestiged{}, and now has {:.2} Prestige Points!",
+                                        ctx.author().display_name(),
+                                        if first_time { " for the first time" } else { "" },
+                                        p.prestige,
+            ))).await?;
 
         } else {
             reply.delete(ctx).await?;
@@ -197,7 +207,7 @@ pub async fn level(
 pub async fn achievement(
     ctx: Context<'_>,
     title: String,
-    xp: i64,
+    xp: i128,
     recipient: Option<serenity::User>,
 ) -> Result<(),Error> {
 

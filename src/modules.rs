@@ -40,7 +40,7 @@ pub mod player_data {
         /// The user's XP. Increased by using
         /// [`/achievement`](crate::commands::achievement).
         ///
-        pub xp: i64,
+        pub xp: i128,
 
         /// The player's current level.
         ///
@@ -113,17 +113,17 @@ pub mod player_data {
         /// xp * (1 + ((self.prestige - 1) * PRESTIGE_MULTIPLIER))
         /// ```
         ///
-        pub fn xp_change(&self, xp: i64) -> i64 {
+        pub fn xp_change(&self, xp: i128) -> i128 {
             println!("Calculating XP change");
-            match functions::overflow_check::<_,i64>(|| xp * self.prestige as i64) {
-                Overflows::Int => i64::MAX - self.xp,
-                Overflows::Float => xp * self.prestige as i64,
-                Overflows::Safe => (xp as f64 + (xp as f64 * ( self.prestige - 1.0 ) * XP_MULTIPLIER)) as i64,
+            match functions::overflow_check::<_,i128>(|| xp * self.prestige as i128) {
+                Overflows::Panic => i128::MAX - self.xp,
+                Overflows::Float => xp * self.prestige as i128,
+                Overflows::Safe => (xp as f64 + (xp as f64 * ( self.prestige - 1.0 ) * XP_MULTIPLIER)) as i128,
             }
         }
 
         /// Adds XP, calculated using [`xp_change`](Self::xp_change).
-        pub fn add_xp(&mut self, xp: i64) {
+        pub fn add_xp(&mut self, xp: i128) {
             println!("Adding XP internally");
             self.xp += self.xp_change(xp);
             println!("XP added");
@@ -144,10 +144,16 @@ pub mod player_data {
         /// (In one test, it required billions of XP to reach a single level past level
         /// 60, and it required reaching level 2000 to be able to prestige 😭)
 
-        pub fn xp_threshold(&self) -> i64 {
+        pub fn xp_threshold(&self) -> i128 {
             // println!("Debug: Threshold for level {}: {}",level.unwrap_or(self.lvl),2^level.unwrap_or(self.lvl - 1));
             // (50.0 * ((XP_EXPONENT).powf(level.unwrap_or(self.lvl - 1) as f64))) as i64
-            return 50 + (25.0 * XP_THRESHOLD_MULTIPLIER * (self.prestige - 1.0)) as i64;
+
+            let threshold_calc = ||50 + (25.0 * XP_THRESHOLD_MULTIPLIER * (self.prestige - 1.0)) as i128;
+            match functions::overflow_check::<_,i128>(threshold_calc) {
+                Overflows::Panic => i128::MAX,
+                Overflows::Float => 50 + (25 * XP_THRESHOLD_MULTIPLIER as i128 * (self.prestige as i128 - 1)),
+                Overflows::Safe => threshold_calc(),
+            }
         }
 
         // Prestige Points Section
@@ -200,7 +206,7 @@ pub mod player_data {
             println!("Checking level up");
 
             if self.xp > self.xp_threshold() {
-                let level_change = self.xp / self.xp_threshold();
+                let level_change = (self.xp / self.xp_threshold()) as i64;
                 if level_change > 4 {
                     output.push(format!("{username} gained a level! They are now at Lv. {}!\n...",self.lvl + 1));
                     output.push(format!("{username} gained a level! They are now at Lv. {}!",self.lvl + level_change - 1));
@@ -210,7 +216,7 @@ pub mod player_data {
                         output.push(format!("{username} gained a level! They are now at Lv. {}!",self.lvl + i));
                     }
                 }
-                self.lvl += self.xp / self.xp_threshold();
+                self.lvl += level_change;
                 println!("Gained {} levels!",self.xp / self.xp_threshold());
                 self.xp = self.xp % self.xp_threshold();
             }
@@ -326,21 +332,32 @@ pub mod functions {
 
     pub enum Overflows {
         Float,
-        Int,
+        Panic,
         Safe,
     }
 
 
     #[should_panic]
     pub fn overflow_check<F, N>(f: F) -> Overflows where
-        F: FnOnce() -> i64 + std::panic::UnwindSafe {
+        F: FnOnce() -> N + std::panic::UnwindSafe,
+        N: PartialOrd + FromFloat
+    {
         let result = std::panic::catch_unwind(||f());
         if result.is_err() {
             println!("Caught overflow");
-            return Overflows::Int;
-
+            return Overflows::Panic;
         }
-        let result_unwrapped = result.unwrap();
-        if result_unwrapped >= f64::MAX as i64 { Overflows::Float } else { Overflows::Safe }
+
+        if result.unwrap() >= N::from_float(f64::MAX) { Overflows::Float } else { Overflows::Safe }
+    }
+
+    trait FromFloat {
+        fn from_float(n: f64) -> Self;
+    }
+    impl FromFloat for f64 {
+        fn from_float(n: f64) -> f64 { n }
+    }
+    impl FromFloat for i128 {
+        fn from_float(n: f64) -> i128 { n as i128 }
     }
 }
