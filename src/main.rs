@@ -4,12 +4,13 @@ use std::cmp;
 use serde::{Serialize, Deserialize};
 
 mod commands;
-mod types;
+mod modules;
 mod file_management;
 mod slash_commands;
 
-use types::player_data;
-use types::json_data;
+use modules::player_data;
+use modules::json_data;
+use modules::functions;
 
 struct Data{} // user data, stored and accessible everywhere
 

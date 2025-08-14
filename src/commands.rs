@@ -62,12 +62,11 @@ pub async fn prestige(
         }
         //ctx.say(format!("{:.1}",(p.lvl as f64 / p.prestige_threshold() as f64))).await.expect("Unknown error");
 
-        let prestige_points = p.lvl as f64 / 10 as f64;
-        let prestige_value: i64 = cmp::max((p.prestige * player_data::PRESTIGE_THRESHOLD) as i64, player_data::PRESTIGE_MINIMUM as i64);
-        if p.lvl < prestige_value  as i64 {
+        let prestige_points = p.prestige_points();
+        if p.lvl < p.prestige_threshold {
             ctx.send(poise::CreateReply::default()
                     .content(format!("You need to be at least level {} to Prestige{}.",
-                                    prestige_value,
+                                    p.prestige_threshold,
                                     if p.prestige == 1.0 {
                                         " for the first time"
                                     } else { "" }
@@ -124,12 +123,13 @@ pub async fn prestige(
 
         if acceptance {
             reply.edit(ctx, poise::CreateReply::default()
-                    .content(format!("{} has Prestiged{}, and earned {:.1} Prestige Points!",
+                    .content(format!("{} has Prestiged{}, and now has {:.2} Prestige Points!",
                                         ctx.author().display_name(),
                                         if p.prestige == 1.0 { " for the first time" } else { "" },
                                         prestige_points * p.prestige
             ))).await?;
-            p.prestige += p.prestige * prestige_points;
+            p.prestige = p.prestige * prestige_points;
+            p.prestige_threshold = p.lvl;
             p.lvl = 1;
             p.xp = 0;
             p.title_segments.push(title);
@@ -174,7 +174,7 @@ pub async fn level(
                .fields([
                    ("Level", p.lvl.to_string(), true),
                    if p.prestige > 1.0 {
-                       ("Prestige", format!("{:.1}",p.prestige), true)
+                       ("Prestige", format!("{:.2}",p.prestige), true)
                    } else {
                        ("","".to_string(),true)
                    },
@@ -220,11 +220,16 @@ pub async fn achievement(
 
     // new scope with which to access a player from `players`.
     {
+        println!("Adding XP");
         let p: &mut player_data::Player = players.iter_mut().find(|x| x.user_id == current_id).expect("User not present in Players despite verification");
         p.add_xp(xp);
 
+        println!("XP added");
+
+        println!("Checking level");
         let lvl_output = p.lvl_check(Some(ctx)).await;
 
+        println!("Sending Message");
         ctx.send(poise::CreateReply::default()
                  .embed(serenity::CreateEmbed::new()
                  .title(format!("{} | Achievement Unlocked!",

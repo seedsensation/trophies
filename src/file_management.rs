@@ -4,13 +4,15 @@ use std::hash::Hash;
 use std::collections::HashSet;
 use crate::json_data::FileFormat;
 
+const FILENAME: &str = "saved_data.json";
+
 /// Saves a vector of Player to file.
 ///
 /// Panics if the vector it has to save has duplicate objects.
 /// This should never happen and would break everything if it did.
 pub fn save(data: &FileFormat) {
     let j = serde_json::to_string(data).expect("Failed to convert to JSON");
-    fs::write("players.json",j).expect("Failed to save file");
+    fs::write(FILENAME,j).expect("Failed to save file");
 
 }
 
@@ -29,7 +31,7 @@ pub fn save_players(players: &Vec<Player>) {
 ///
 /// If the file doesn't exist, just return an empty vector.
 pub fn load() -> FileFormat {
-    let data = fs::read_to_string("players.json");
+    let data = fs::read_to_string(FILENAME);
     if data.is_err() {
         return FileFormat::new()
     }

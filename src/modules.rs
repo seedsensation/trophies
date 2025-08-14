@@ -5,22 +5,16 @@ pub mod player_data {
         Context,
         serenity,
         file_management,
-        cmp,
+        functions,
     };
+    use functions::Overflows;
 
-    /// Used to calculate the required level to be able to prestige.
-    ///
-    /// Uses the following formula:
-    /// ```
-    /// max(self.prestige * PRESTIGE_THRESHOLD, PRESTIGE_MINIMUM)
-    /// ```
-    pub const PRESTIGE_THRESHOLD: f64 = 0.5;
 
-    /// The minimum level at which you are able to prestige
-    pub const PRESTIGE_MINIMUM: f64 = 10.0;
+    /// The amount by which the XP threshold is multiplied by prestige
+    pub const XP_THRESHOLD_MULTIPLIER: f64 = 2.0;
 
-    /// The amount by which prestige multiplies your XP
-    pub const PRESTIGE_MULTIPLIER: f64 = 0.2;
+    /// The amount by which XP is multiplied by prestige
+    pub const XP_MULTIPLIER: f64 = 0.5;
 
 
     /// Contains all required info about a given player.
@@ -72,6 +66,12 @@ pub mod player_data {
         /// [`title()`](Self::title), and can be edited using
         /// the
         pub title_segments: Vec<String>,
+
+        /// The last level at which the player prestiged.
+        ///
+        /// Starts at 10.0, and increases to current level whenever
+        /// the player prestiges.
+        pub prestige_threshold: i64,
     }
 
     impl Player {
@@ -102,6 +102,7 @@ pub mod player_data {
                 lvl: 1,
                 prestige: 1.0,
                 title_segments: vec![],
+                prestige_threshold: 10,
             }
         }
 
@@ -109,16 +110,23 @@ pub mod player_data {
         ///
         /// The formula for the XP is:
         /// ```
-        /// xp * (1 + (self.prestige * PRESTIGE_MULTIPLIER))
+        /// xp * (1 + ((self.prestige - 1) * PRESTIGE_MULTIPLIER))
         /// ```
         ///
         pub fn xp_change(&self, xp: i64) -> i64 {
-            (xp as f64 * (1.0 + (self.prestige * PRESTIGE_MULTIPLIER))) as i64
+            println!("Calculating XP change");
+            match functions::overflow_check::<_,i64>(|| xp * self.prestige as i64) {
+                Overflows::Int => i64::MAX - self.xp,
+                Overflows::Float => xp * self.prestige as i64,
+                Overflows::Safe => (xp as f64 + (xp as f64 * ( self.prestige - 1.0 ) * XP_MULTIPLIER)) as i64,
+            }
         }
 
         /// Adds XP, calculated using [`xp_change`](Self::xp_change).
         pub fn add_xp(&mut self, xp: i64) {
+            println!("Adding XP internally");
             self.xp += self.xp_change(xp);
+            println!("XP added");
         }
 
         /// Checks how much XP you need to level up.
@@ -139,7 +147,22 @@ pub mod player_data {
         pub fn xp_threshold(&self) -> i64 {
             // println!("Debug: Threshold for level {}: {}",level.unwrap_or(self.lvl),2^level.unwrap_or(self.lvl - 1));
             // (50.0 * ((XP_EXPONENT).powf(level.unwrap_or(self.lvl - 1) as f64))) as i64
-            return (100.0 * ( self.prestige * PRESTIGE_MULTIPLIER * 0.5 ).max(1.0)) as i64;
+            return 50 + (25.0 * XP_THRESHOLD_MULTIPLIER * (self.prestige - 1.0)) as i64;
+        }
+
+        // Prestige Points Section
+        // So. Prestige points should be calculated as starting from the current prestige threshold.
+        // e.g. prestige threshold = 10, lvl = 11 => prestige points = 1 + (1 / 20)
+        // therefore, we need the formula:
+        // ((level - prestige_threshold)/20) + 1
+        //
+        // prestige_threshold should then be related to your current prestige,
+        // preferably multiplicative rather than additive.
+        //
+        //
+
+        pub fn prestige_points(&self) -> f64 {
+            ((self.lvl as f64 - self.prestige_threshold as f64 + 10.0) / 100.0) + 1.0
         }
 
         /// Checks whether a Player has enough [`XP`](Self::xp) to level up.
@@ -167,28 +190,56 @@ pub mod player_data {
                 };
 
 
+            println!("Checking level down");
             while self.xp < 0 && self.lvl > 1 {
                 self.lvl -= 1;
                 self.xp += self.xp_threshold();
                 output.push(format!("{username} lost a level! They are now at Lv. {}!", self.lvl));
             }
 
-            while self.xp >= self.xp_threshold() {
-                self.xp -= self.xp_threshold();
-                self.lvl += 1;
-                output.push(format!("{username} gained a level! They are now at Lv. {}!", self.lvl));
-            }
+            println!("Checking level up");
 
-            if self.lvl >= cmp::max((self.prestige * PRESTIGE_THRESHOLD) as i64, PRESTIGE_MINIMUM as i64) as i64 && old_lvl < (self.prestige * PRESTIGE_THRESHOLD) as i64 {
+            if self.xp > self.xp_threshold() {
+                let level_change = self.xp / self.xp_threshold();
+                if level_change > 4 {
+                    output.push(format!("{username} gained a level! They are now at Lv. {}!\n...",self.lvl + 1));
+                    output.push(format!("{username} gained a level! They are now at Lv. {}!",self.lvl + level_change - 1));
+                    output.push(format!("{username} gained a level! They are now at Lv. {}!",self.lvl + level_change));
+                } else {
+                    for i in 1..level_change {
+                        output.push(format!("{username} gained a level! They are now at Lv. {}!",self.lvl + i));
+                    }
+                }
+                self.lvl += self.xp / self.xp_threshold();
+                println!("Gained {} levels!",self.xp / self.xp_threshold());
+                self.xp = self.xp % self.xp_threshold();
+            }
+            // while self.xp >= self.xp_threshold() {
+            //     println!("Subtracting XP");
+            //     self.xp -= self.xp_threshold();
+            //     println!("Increasing level");
+            //     self.lvl += 1;
+            //     println!("Adding to output string");
+            //     output.push(format!("{username} gained a level! They are now at Lv. {}!", self.lvl));
+            // }
+
+            println!("Checking prestige eligibility");
+
+            if self.lvl >= self.prestige_threshold && old_lvl < self.prestige_threshold {
                 output.push("You are now eligible to Prestige! Use `/prestige` to find out more.".to_string())
             }
+
+            println!("Compressing msg");
 
             if output.len() > 10 {
                 output[1] = "...".to_string();
             }
             while output.len() > 10 {
+                println!("Removing line");
                 output.remove(2);
             }
+
+            println!("Level check complete");
             return output;
         }
 
@@ -251,9 +302,6 @@ pub mod player_data {
 
 
     }
-
-
-
 }
 
 pub mod json_data {
@@ -271,5 +319,28 @@ pub mod json_data {
                 player_list: vec![],
             }
         }
+    }
+}
+
+pub mod functions {
+
+    pub enum Overflows {
+        Float,
+        Int,
+        Safe,
+    }
+
+
+    #[should_panic]
+    pub fn overflow_check<F, N>(f: F) -> Overflows where
+        F: FnOnce() -> i64 + std::panic::UnwindSafe {
+        let result = std::panic::catch_unwind(||f());
+        if result.is_err() {
+            println!("Caught overflow");
+            return Overflows::Int;
+
+        }
+        let result_unwrapped = result.unwrap();
+        if result_unwrapped >= f64::MAX as i64 { Overflows::Float } else { Overflows::Safe }
     }
 }
