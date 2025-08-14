@@ -220,7 +220,7 @@ pub mod player_data {
     /// Currently unused, as it does not verify the player's presence beforehand,
     /// making it less safe than just running it manually.
     pub fn find_player_by_id(id: u64) -> Player {
-        let players = file_management::load();
+        let players = file_management::load_players();
         players.iter().find(|x| x.user_id == id).expect("User not present in players.").clone()
     }
 
@@ -234,17 +234,17 @@ pub mod player_data {
     ///
     pub fn verify_player(ctx: Context<'_>, id: Option<u64>) {
         let u_id = id.unwrap_or_else(|| ctx.author().id.get());
-        let mut players = file_management::load();
+        let mut players = file_management::load_players();
         let id_vector = players.iter().map(|x| x.user_id).collect::<Vec<_>>();
 
         if !id_vector.contains(&u_id) {
             players.push(Player::new(u_id));
 
             // only needs to save if a change needs to be made
-            file_management::save(&players);
+            file_management::save_players(&players);
 
             // assert that the loaded file, mapped for ids, contains the id that we're looking for
-            assert!(file_management::load().iter().map(|x| x.user_id).collect::<Vec<_>>().contains(&u_id));
+            assert!(file_management::load_players().iter().map(|x| x.user_id).collect::<Vec<_>>().contains(&u_id));
             // if it doesn't, then all hope is lost
         }
 
@@ -254,4 +254,22 @@ pub mod player_data {
 
 
 
+}
+
+pub mod json_data {
+    use crate::{Serialize, Deserialize, player_data};
+
+    #[non_exhaustive]
+    #[derive(Serialize, Deserialize)]
+    pub struct FileFormat {
+        pub player_list: Vec<player_data::Player>,
+    }
+
+    impl FileFormat {
+        pub fn new() -> FileFormat {
+            FileFormat {
+                player_list: vec![],
+            }
+        }
+    }
 }

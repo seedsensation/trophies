@@ -9,6 +9,7 @@ mod file_management;
 mod slash_commands;
 
 use types::player_data;
+use types::json_data;
 
 struct Data{} // user data, stored and accessible everywhere
 
@@ -33,7 +34,7 @@ async fn register(ctx: Context<'_>) -> Result<(), Error> {
 #[poise::command(slash_command, prefix_command)]
 async fn update_title(ctx: Context<'_>) -> Result<(),Error> {
 
-    let players = file_management::load();
+    let players = file_management::load_players();
     let p = players.iter().find(|x| x.user_id == ctx.author().id.get()).expect("User not present in Players despite verification").clone();
 
     if p.title_segments.len() == 0 {

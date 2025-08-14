@@ -41,7 +41,7 @@ pub async fn prestige(
 
     player_data::verify_player(ctx, Some(ctx.author().id.get()));
 
-    let mut players = file_management::load();
+    let mut players = file_management::load_players();
     // Additional scope so that players can be edited. It will be saved upon the closing of the scope
     {
         let p: &mut player_data::Player = players.iter_mut().find(|x| x.user_id == ctx.author().id.get()).expect("User not present in Players despite verification");
@@ -144,7 +144,7 @@ pub async fn prestige(
         }
     }
 
-    file_management::save(&players);
+    file_management::save_players(&players);
 
     Ok(())
 }
@@ -161,7 +161,7 @@ pub async fn level(
 
     player_data::verify_player(ctx, Some(current_id));
 
-    let mut players = file_management::load();
+    let mut players = file_management::load_players();
 
     let p: &mut player_data::Player = players.iter_mut().find(|x| x.user_id == current_id).expect("User not present in Players despite verification");
 
@@ -170,7 +170,7 @@ pub async fn level(
                .title(format!("User Data"))
                .author(
                     serenity::CreateEmbedAuthor::new(format!("Lv. {} {} {}", p.lvl, p.title(), u.display_name()))
-                        .icon_url(u.static_avatar_url().expect("No avatar image?")))
+                        .icon_url(u.static_avatar_url().unwrap_or_else(|| u.default_avatar_url())))
                .fields([
                    ("Level", p.lvl.to_string(), true),
                    if p.prestige > 1.0 {
@@ -206,7 +206,7 @@ pub async fn achievement(
 
     player_data::verify_player(ctx, Some(u.id.get()));
 
-    let mut players = file_management::load();
+    let mut players = file_management::load_players();
 
     let current_id = u.id.get();
 
@@ -246,7 +246,7 @@ pub async fn achievement(
     }
     // scope exited. `players` can now be saved to file.
 
-    file_management::save(&players);
+    file_management::save_players(&players);
 
     Ok(())
 }
@@ -255,7 +255,7 @@ pub async fn achievement(
 /// Edit your existing titles
 pub async fn update_title(ctx: Context<'_>) -> Result<(),Error> {
 
-    let players = file_management::load();
+    let players = file_management::load_players();
     let p = players.iter().find(|x| x.user_id == ctx.author().id.get()).expect("User not present in Players despite verification").clone();
 
     if p.title_segments.len() == 0 {
