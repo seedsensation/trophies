@@ -266,6 +266,18 @@ pub async fn achievement(
     Ok(())
 }
 
+/// See who's at the top.
+pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
+    // Formatted as a list of the top 5 players.
+    let mut players = file_management::load_players();
+
+    let pages = players.len() / 5;
+
+    players.sort();
+
+    Ok(())
+}
+
 
 /// Edit your existing titles
 pub async fn update_title(ctx: Context<'_>) -> Result<(),Error> {

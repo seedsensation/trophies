@@ -49,3 +49,8 @@ pub async fn register(ctx: Context<'_>) -> Result<(), Error> {
 pub async fn update_title(ctx: Context<'_>) -> Result<(),Error> {
     commands::update_title(ctx).await
 }
+
+#[poise::command(slash_command, prefix_command)]
+pub async fn leaderboard(ctx: Context<'_>) -> Result<(),Error> {
+    commands::leaderboard(ctx).await
+}

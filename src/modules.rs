@@ -6,6 +6,7 @@ pub mod player_data {
         serenity,
         file_management,
         functions,
+        cmp
     };
     use functions::Overflows;
 
@@ -308,6 +309,31 @@ pub mod player_data {
 
 
     }
+
+    impl PartialEq for Player {
+        fn eq(&self, other: &Player) -> bool {
+            self.user_id == other.user_id
+        }
+    }
+
+    impl Eq for Player {}
+
+    impl PartialOrd for Player {
+        fn partial_cmp(&self, other: &Player) -> Option<cmp::Ordering> {
+            Some((other.lvl as i128 + (other.xp / other.xp_threshold()))
+                 .cmp(&(self.lvl as i128 + (self.xp / self.xp_threshold()))))
+        }
+    }
+
+    impl Ord for Player {
+        fn cmp(&self, other: &Player) -> cmp::Ordering {
+            (other.lvl as i128 + (other.xp / other.xp_threshold()))
+                .cmp(&(self.lvl as i128 + (self.xp / self.xp_threshold())))
+
+
+        }
+    }
+
 }
 
 pub mod json_data {
@@ -344,7 +370,6 @@ pub mod functions {
     {
         let result = std::panic::catch_unwind(||f());
         if result.is_err() {
-            println!("Caught overflow");
             return Overflows::Panic;
         }
 
