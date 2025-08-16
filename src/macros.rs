@@ -37,6 +37,6 @@ macro_rules! into_types {
 #[macro_export]
 macro_rules! test_bigint {
     ($($v:expr),+) => {
-        $(println!("{}",try_into_type!(big_int::BigInt, $v as i128));)*
+        $(println!("{}",try_into_type!(big_int::BigInt, $v));)*
     }
 }

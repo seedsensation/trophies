@@ -57,14 +57,12 @@ async fn update_title(ctx: Context<'_>) -> Result<(), Error> {
 #[tokio::main]
 async fn main() {
     // converts each argumnt into a BigInt, and outputs it
-    test_bigint!(123, 1234, 92835729865723987238572398572398575937,292874, 1, 99999999999999999999999999999999999999);
+    // test_bigint!(123, 1234, 92835729865723987238572398572398575937,292874, 1, 99999999999999999999999999999999999999, 100.524f64);
 
-    let (x, y,z) = into_types!(big_int::BigInt, for 150i128, 19999999999i128, 128);
-    let a = big_int::BigInt::new_from_float(10.5);
-    println!("{a}");
-    println!("{}",a.mantissa);
+    let a = big_int::BigInt::new_from_float(143252.23);
+    // println!("{a}");
+    // println!("{}",a.mantissa);
 
-    println!("{x}, {y}, {z}");
 
 
 

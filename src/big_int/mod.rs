@@ -8,6 +8,11 @@ pub trait CanLog10 {
     fn calc_log10(&self) -> i128 ;
 }
 
+pub trait CanConvSafely {
+    fn to_int(&self) -> i128;
+    fn to_float(&self) -> f64;
+}
+
 macro_rules! impl_log10 {
     ("int", for $($t:ty),+) => {
         $(
@@ -29,11 +34,26 @@ macro_rules! impl_log10 {
     }
 }
 
+macro_rules! impl_convtoint {
+    (safe for $($t:ty),+) => {
+        $(
+            impl CanConvSafely for $t {
+                fn to_int(&self) -> i128 {
+                    *self as i128
+                }
+                fn to_float(&self) -> f64 {
+                    *self as f64
+                }
+            }
+        )*
+    }
+}
+
 
 
 impl_log10!("int", for i8, i16, i32, i64, i128);
 impl_log10!("float", for f32, f64);
-
+impl_convtoint!(safe for i8, i16, i32, i64, i128, f32, f64);
 
 /// An implementation of BigInt, for numbers with a bigger range
 /// than standard 128-bit.
@@ -62,8 +82,8 @@ pub struct ConversionError;
 ///
 impl BigInt {
     pub fn new<N>(val: N) -> BigInt
-where N: Add + Sub + Mul + Div + TryFrom<u32> + TryInto<i128> + CanLog10,
-i128: TryFrom<N> {
+where N: Add + Sub + Mul + Div + TryFrom<u32> + CanLog10 + CanConvSafely,
+{
         // exponent = log10(val)
         let exponent = val.calc_log10();
 
@@ -71,7 +91,7 @@ i128: TryFrom<N> {
         let mantissa = match exponent.cmp(&(MANTISSA_LENGTH as i128)) {
             Ordering::Greater => try_into_err!(i128, val) / (10i128.pow(try_into_err!(u32, exponent) - MANTISSA_LENGTH)),
             Ordering::Equal => try_into_err!(i128, val),
-            Ordering::Less => try_into_err!(i128,val) * 10i128.pow(MANTISSA_LENGTH - exponent as u32),
+            Ordering::Less => (val.to_float() * 10f64.powf(MANTISSA_LENGTH as f64 - exponent as f64)).to_int(),
         };
 
         BigInt { exponent, mantissa }
@@ -108,8 +128,8 @@ i128: TryFrom<N> {
 
 
 impl<N> From<N> for BigInt
-where N: Add + Sub + Mul + Div + TryFrom<u32> + TryInto<i128> + CanLog10,
-i128: TryFrom<N> {
+where N: Add + Sub + Mul + Div + TryFrom<u32> + CanLog10 + CanConvSafely,
+{
     fn from(val: N) -> BigInt {
         BigInt::new(val)
     }
@@ -153,7 +173,7 @@ impl fmt::Display for BigInt {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.exponent.cmp(&(MANTISSA_LENGTH as i128)) {
             Ordering::Equal => write!(f, "{}", self.mantissa),
-            Ordering::Less => write!(f, "{}", self.mantissa / 10i128.pow(MANTISSA_LENGTH - self.exponent as u32)),
+            Ordering::Less => write!(f, "{}", self.mantissa as f64 / 10f64.powf(( MANTISSA_LENGTH - self.exponent as u32 ) as f64)),
             Ordering::Greater => write!(f,"{:.4}e{}", self.mantissa as f64 / 10i128.pow(MANTISSA_LENGTH) as f64, self.exponent as u32)
         }
     }
