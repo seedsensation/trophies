@@ -1,19 +1,19 @@
 use std::{fmt, ops::{Add, Mul, Div, Sub}, cmp::Ordering};
-use crate::{into_type};
+use crate::{try_into_err};
 
 const MANTISSA_LENGTH: u32 = 8;
 
 
-trait CanLog10 {
-    fn calc_log10(&self) -> u32;
+pub trait CanLog10 {
+    fn calc_log10(&self) -> i128 ;
 }
 
 macro_rules! impl_log10 {
     ("int", for $($t:ty),+) => {
         $(
             impl CanLog10 for $t {
-                fn calc_log10(&self) -> u32 {
-                    self.ilog10()
+                fn calc_log10(&self) -> i128 {
+                    self.ilog10() as i128
                 }
             }
         )*
@@ -21,8 +21,8 @@ macro_rules! impl_log10 {
     ("float", for $($t:ty),+) => {
         $(
             impl CanLog10 for $t {
-                fn calc_log10(&self) -> u32 {
-                    self.log10() as u32
+                fn calc_log10(&self) -> i128 {
+                    self.log10() as i128
                 }
             }
         )*
@@ -46,11 +46,12 @@ impl_log10!("float", for f32, f64);
 /// for 128, the exponent should be 2.
 ///
 pub struct BigInt {
-    mantissa: i128,
-    exponent: i128,
+    pub mantissa: i128,
+    pub exponent: i128,
 }
 
-
+#[derive(Debug)]
+pub struct ConversionError;
 /// Conversion from numerical types into BigInt
 /// Set the exponent to log10 of the inputted number.
 ///
@@ -59,21 +60,76 @@ pub struct BigInt {
 ///
 /// If it's less than, add 0s to the end.
 ///
-impl<N> From<N> for BigInt
-where N: Add + Sub + Mul + Div + From<u32> + From<i128> + Into<i128> + CanLog10 {
-    fn from(val: N) -> BigInt {
+impl BigInt {
+    pub fn new<N>(val: N) -> BigInt
+where N: Add + Sub + Mul + Div + TryFrom<u32> + TryInto<i128> + CanLog10,
+i128: TryFrom<N> {
         // exponent = log10(val)
-        let exponent = val.calc_log10() as i128;
+        let exponent = val.calc_log10();
 
         // mantissa = first {} digits of val
         let mantissa = match exponent.cmp(&(MANTISSA_LENGTH as i128)) {
-            Ordering::Greater => into_type!(i128, val) / (10i128.pow(exponent as u32 - MANTISSA_LENGTH)),
-            Ordering::Equal => into_type!(i128, val),
-            Ordering::Less => into_type!(i128, val) * 10i128.pow(MANTISSA_LENGTH - exponent as u32),
+            Ordering::Greater => try_into_err!(i128, val) / (10i128.pow(try_into_err!(u32, exponent) - MANTISSA_LENGTH)),
+            Ordering::Equal => try_into_err!(i128, val),
+            Ordering::Less => try_into_err!(i128,val) * 10i128.pow(MANTISSA_LENGTH - exponent as u32),
         };
 
         BigInt { exponent, mantissa }
 
+    }
+
+    pub fn new_from_float(val: f64) -> BigInt {
+        // exponent = log10(val)
+        let exponent = val.calc_log10();
+        assert!(exponent >= 0);
+
+        // mantissa = first {} digits of val
+        let mantissa = match exponent.cmp(&(MANTISSA_LENGTH as i128)) {
+            Ordering::Greater => val as i128 / (10i128.pow(try_into_err!(u32, exponent) - MANTISSA_LENGTH)),
+            Ordering::Equal => val as i128,
+            Ordering::Less => (val * 10f64.powf(MANTISSA_LENGTH as f64 - exponent as f64)) as i128,
+        };
+
+        BigInt { exponent, mantissa }
+
+    }
+
+    pub fn verify(&mut self) {
+        while self.mantissa.calc_log10() > MANTISSA_LENGTH.into() {
+            self.mantissa /= 10;
+            self.exponent += 1;
+        }
+        while self.mantissa.calc_log10() < MANTISSA_LENGTH.into() {
+            self.mantissa *= 10;
+            self.exponent -= 1;
+        }
+    }
+}
+
+
+impl<N> From<N> for BigInt
+where N: Add + Sub + Mul + Div + TryFrom<u32> + TryInto<i128> + CanLog10,
+i128: TryFrom<N> {
+    fn from(val: N) -> BigInt {
+        BigInt::new(val)
+    }
+
+}
+
+impl CanLog10 for BigInt{
+    fn calc_log10(&self) -> i128 {
+        self.exponent
+    }
+}
+
+impl Mul for BigInt {
+    type Output = Self;
+    fn mul(self, rhs: BigInt) -> Self::Output {
+        let mut output = self;
+        output.mantissa *= rhs.mantissa;
+        output.exponent += rhs.exponent;
+        output.verify();
+        output
     }
 }
 

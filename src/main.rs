@@ -13,6 +13,7 @@ mod macros;
 use modules::functions;
 use modules::json_data;
 use modules::player_data;
+use big_int::ConversionError;
 
 struct Data {} // user data, stored and accessible everywhere
 
@@ -56,11 +57,16 @@ async fn update_title(ctx: Context<'_>) -> Result<(), Error> {
 #[tokio::main]
 async fn main() {
     // converts each argumnt into a BigInt, and outputs it
-    test_bigint!(123, 1234, 92835729865723987238572398572398575937,292874, 1, i128::MAX);
+    test_bigint!(123, 1234, 92835729865723987238572398572398575937,292874, 1, 99999999999999999999999999999999999999);
 
-    let (x,y,z) = into_types!(big_int::BigInt, for 150, 19999999999, 128);
+    let (x, y,z) = into_types!(big_int::BigInt, for 150i128, 19999999999i128, 128);
+    let a = big_int::BigInt::new_from_float(10.5);
+    println!("{a}");
+    println!("{}",a.mantissa);
 
     println!("{x}, {y}, {z}");
+
+
 
     dotenv().ok();
     let token = std::env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN");
