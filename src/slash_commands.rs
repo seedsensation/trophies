@@ -5,16 +5,15 @@
 //! the functions separately from the `help` strings that Poise
 //! automatically uses.
 
-
-use crate::{commands, Context, Error, serenity};
+use crate::{Context, Error, commands, serenity};
 
 /// Reset your progress, with an advantage.
 #[poise::command(slash_command, prefix_command)]
 pub async fn prestige(
     ctx: Context<'_>,
-    #[description="A new word to add to your Title."] title: String,
-) -> Result<(),Error> {
-    commands::prestige(ctx,title).await
+    #[description = "A new word to add to your Title."] title: String,
+) -> Result<(), Error> {
+    commands::prestige(ctx, title).await
 }
 
 /// Check your current XP, Level and Prestige.
@@ -33,7 +32,7 @@ pub async fn achievement(
     #[description = "Title of your achievement"] title: String,
     #[description = "XP Achieved"] xp: i64,
     #[description = "Recipient of Achievement"] recipient: Option<serenity::User>,
-) -> Result<(),Error> {
+) -> Result<(), Error> {
     println!("RECEIVED ACHIEVEMENT COMMAND - {xp}");
     commands::achievement(ctx, title, xp as i128, recipient).await
 }
@@ -46,11 +45,11 @@ pub async fn register(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 #[poise::command(slash_command, prefix_command)]
-pub async fn update_title(ctx: Context<'_>) -> Result<(),Error> {
+pub async fn update_title(ctx: Context<'_>) -> Result<(), Error> {
     commands::update_title(ctx).await
 }
 
 #[poise::command(slash_command, prefix_command)]
-pub async fn leaderboard(ctx: Context<'_>) -> Result<(),Error> {
+pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
     commands::leaderboard(ctx).await
 }

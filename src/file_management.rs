@@ -1,8 +1,8 @@
+use crate::json_data::FileFormat;
 use crate::player_data::Player;
+use std::collections::HashSet;
 use std::fs;
 use std::hash::Hash;
-use std::collections::HashSet;
-use crate::json_data::FileFormat;
 
 const FILENAME: &str = "saved_data.json";
 
@@ -12,14 +12,14 @@ const FILENAME: &str = "saved_data.json";
 /// This should never happen and would break everything if it did.
 pub fn save(data: &FileFormat) {
     let j = serde_json::to_string(data).expect("Failed to convert to JSON");
-    fs::write(FILENAME,j).expect("Failed to save file");
-
+    fs::write(FILENAME, j).expect("Failed to save file");
 }
 
 pub fn save_players(players: &Vec<Player>) {
-
     // crash if there are any duplicate IDs
-    assert!(no_unique_elements(&players.iter().map(|x| x.user_id).collect::<Vec<_>>()));
+    assert!(no_unique_elements(
+        &players.iter().map(|x| x.user_id).collect::<Vec<_>>()
+    ));
 
     // load existing data with which to overwrite players
     let mut existing_data = load();
@@ -33,7 +33,7 @@ pub fn save_players(players: &Vec<Player>) {
 pub fn load() -> FileFormat {
     let data = fs::read_to_string(FILENAME);
     if data.is_err() {
-        return FileFormat::new()
+        return FileFormat::new();
     }
 
     serde_json::from_str(data.unwrap().as_str()).expect("Failed to parse JSON - invalid format")
@@ -43,9 +43,6 @@ pub fn load_players() -> Vec<Player> {
     load().player_list
 }
 
-
-
-
 /// Checks to see if an iterator has any duplicate elements
 ///
 /// Creates a hashset out of elements from the iterator,
@@ -54,7 +51,7 @@ pub fn load_players() -> Vec<Player> {
 pub fn no_unique_elements<T>(iter: T) -> bool
 where
     T: IntoIterator,
-T::Item: Eq + Hash,
+    T::Item: Eq + Hash,
 {
     let mut uniq = HashSet::new();
     iter.into_iter().all(move |x| uniq.insert(x))

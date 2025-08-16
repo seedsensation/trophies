@@ -1,22 +1,12 @@
 pub mod player_data {
-    use crate::{
-        Serialize,
-        Deserialize,
-        Context,
-        serenity,
-        file_management,
-        functions,
-        cmp
-    };
+    use crate::{Context, Deserialize, Serialize, cmp, file_management, functions, serenity};
     use functions::Overflows;
-
 
     /// The amount by which the XP threshold is multiplied by prestige
     pub const XP_THRESHOLD_MULTIPLIER: f64 = 2.0;
 
     /// The amount by which XP is multiplied by prestige
     pub const XP_MULTIPLIER: f64 = 0.5;
-
 
     /// Contains all required info about a given player.
     ///
@@ -29,10 +19,9 @@ pub mod player_data {
     /// the vector created by [`load()`](file_management::load()),
     /// use [`verify_player()`](verify_player) first, to ensure that the
     /// player is present - otherwise it will panic.
-    #[derive(Serialize,Deserialize,Clone)]
+    #[derive(Serialize, Deserialize, Clone)]
     #[non_exhaustive]
     pub struct Player {
-
         /// The ID of the user. Should be entirely unique.
         ///
         /// Uniqueness of `user_id` is checked whenever saved.
@@ -76,7 +65,6 @@ pub mod player_data {
     }
 
     impl Player {
-
         /// Calculates a title for the object, using its
         /// [`title_segments`](Self::title_segments) attribute.
         pub fn title(&self) -> String {
@@ -92,7 +80,10 @@ pub mod player_data {
         ///
         /// Requires a `ctx` object in order to access Discord's servers.
         pub async fn user_data(&self, ctx: Context<'_>) -> Option<serenity::User> {
-            serenity::UserId::new(self.user_id).to_user(ctx.http()).await.ok()
+            serenity::UserId::new(self.user_id)
+                .to_user(ctx.http())
+                .await
+                .ok()
         }
 
         /// Initialise a new [`Player`] object, from a given ID.
@@ -116,10 +107,12 @@ pub mod player_data {
         ///
         pub fn xp_change(&self, xp: i128) -> i128 {
             println!("Calculating XP change");
-            match functions::overflow_check::<_,i128>(|| xp * self.prestige as i128) {
+            match functions::overflow_check::<_, i128>(|| xp * self.prestige as i128) {
                 Overflows::Panic => i128::MAX - self.xp,
                 Overflows::Float => xp * self.prestige as i128,
-                Overflows::Safe => (xp as f64 + (xp as f64 * ( self.prestige - 1.0 ) * XP_MULTIPLIER)) as i128,
+                Overflows::Safe => {
+                    (xp as f64 + (xp as f64 * (self.prestige - 1.0) * XP_MULTIPLIER)) as i128
+                }
             }
         }
 
@@ -149,10 +142,13 @@ pub mod player_data {
             // println!("Debug: Threshold for level {}: {}",level.unwrap_or(self.lvl),2^level.unwrap_or(self.lvl - 1));
             // (50.0 * ((XP_EXPONENT).powf(level.unwrap_or(self.lvl - 1) as f64))) as i64
 
-            let threshold_calc = ||50 + (25.0 * XP_THRESHOLD_MULTIPLIER * (self.prestige - 1.0)) as i128;
-            match functions::overflow_check::<_,i128>(threshold_calc) {
+            let threshold_calc =
+                || 50 + (25.0 * XP_THRESHOLD_MULTIPLIER * (self.prestige - 1.0)) as i128;
+            match functions::overflow_check::<_, i128>(threshold_calc) {
                 Overflows::Panic => i128::MAX,
-                Overflows::Float => 50 + (25 * XP_THRESHOLD_MULTIPLIER as i128 * (self.prestige as i128 - 1)),
+                Overflows::Float => {
+                    50 + (25 * XP_THRESHOLD_MULTIPLIER as i128 * (self.prestige as i128 - 1))
+                }
                 Overflows::Safe => threshold_calc(),
             }
         }
@@ -187,21 +183,24 @@ pub mod player_data {
             let mut output = vec![];
             let old_lvl = self.lvl;
 
-
-
-            let username: String =
-                if ctx.is_some() {
-                    self.user_data(ctx.unwrap()).await.expect("Failed to find user data").display_name().to_owned()
-                } else {
-                    "[Unknown Username]".to_owned()
-                };
-
+            let username: String = if ctx.is_some() {
+                self.user_data(ctx.unwrap())
+                    .await
+                    .expect("Failed to find user data")
+                    .display_name()
+                    .to_owned()
+            } else {
+                "[Unknown Username]".to_owned()
+            };
 
             println!("Checking level down");
             while self.xp < 0 && self.lvl > 1 {
                 self.lvl -= 1;
                 self.xp += self.xp_threshold();
-                output.push(format!("{username} lost a level! They are now at Lv. {}!", self.lvl));
+                output.push(format!(
+                    "{username} lost a level! They are now at Lv. {}!",
+                    self.lvl
+                ));
             }
 
             println!("Checking level up");
@@ -209,16 +208,28 @@ pub mod player_data {
             if self.xp > self.xp_threshold() {
                 let level_change = (self.xp / self.xp_threshold()) as i64;
                 if level_change > 4 {
-                    output.push(format!("{username} gained a level! They are now at Lv. {}!\n...",self.lvl + 1));
-                    output.push(format!("{username} gained a level! They are now at Lv. {}!",self.lvl + level_change - 1));
-                    output.push(format!("{username} gained a level! They are now at Lv. {}!",self.lvl + level_change));
+                    output.push(format!(
+                        "{username} gained a level! They are now at Lv. {}!\n...",
+                        self.lvl + 1
+                    ));
+                    output.push(format!(
+                        "{username} gained a level! They are now at Lv. {}!",
+                        self.lvl + level_change - 1
+                    ));
+                    output.push(format!(
+                        "{username} gained a level! They are now at Lv. {}!",
+                        self.lvl + level_change
+                    ));
                 } else {
                     for i in 1..level_change {
-                        output.push(format!("{username} gained a level! They are now at Lv. {}!",self.lvl + i));
+                        output.push(format!(
+                            "{username} gained a level! They are now at Lv. {}!",
+                            self.lvl + i
+                        ));
                     }
                 }
                 self.lvl += level_change;
-                println!("Gained {} levels!",self.xp / self.xp_threshold());
+                println!("Gained {} levels!", self.xp / self.xp_threshold());
                 self.xp = self.xp % self.xp_threshold();
             }
             // while self.xp >= self.xp_threshold() {
@@ -233,7 +244,10 @@ pub mod player_data {
             println!("Checking prestige eligibility");
 
             if self.lvl >= self.prestige_threshold && old_lvl < self.prestige_threshold {
-                output.push("You are now eligible to Prestige! Use `/prestige` to find out more.".to_string())
+                output.push(
+                    "You are now eligible to Prestige! Use `/prestige` to find out more."
+                        .to_string(),
+                )
             }
 
             println!("Compressing msg");
@@ -266,10 +280,9 @@ pub mod player_data {
             let progress = ((self.xp as f64 / self.xp_threshold() as f64) * 10.0) as usize;
 
             let xp_gotten = "█".repeat(progress);
-            let xp_left = "░".repeat(10-progress);
+            let xp_left = "░".repeat(10 - progress);
 
             format!("{xp_gotten}{xp_left}")
-
         }
     }
 
@@ -279,7 +292,11 @@ pub mod player_data {
     /// making it less safe than just running it manually.
     pub fn find_player_by_id(id: u64) -> Player {
         let players = file_management::load_players();
-        players.iter().find(|x| x.user_id == id).expect("User not present in players.").clone()
+        players
+            .iter()
+            .find(|x| x.user_id == id)
+            .expect("User not present in players.")
+            .clone()
     }
 
     /// Verify whether a player is present inside `players.json`.
@@ -302,12 +319,15 @@ pub mod player_data {
             file_management::save_players(&players);
 
             // assert that the loaded file, mapped for ids, contains the id that we're looking for
-            assert!(file_management::load_players().iter().map(|x| x.user_id).collect::<Vec<_>>().contains(&u_id));
+            assert!(
+                file_management::load_players()
+                    .iter()
+                    .map(|x| x.user_id)
+                    .collect::<Vec<_>>()
+                    .contains(&u_id)
+            );
             // if it doesn't, then all hope is lost
         }
-
-
-
     }
 
     impl PartialEq for Player {
@@ -320,8 +340,10 @@ pub mod player_data {
 
     impl PartialOrd for Player {
         fn partial_cmp(&self, other: &Player) -> Option<cmp::Ordering> {
-            Some((other.lvl as i128 + (other.xp / other.xp_threshold()))
-                 .cmp(&(self.lvl as i128 + (self.xp / self.xp_threshold()))))
+            Some(
+                (other.lvl as i128 + (other.xp / other.xp_threshold()))
+                    .cmp(&(self.lvl as i128 + (self.xp / self.xp_threshold()))),
+            )
         }
     }
 
@@ -329,15 +351,12 @@ pub mod player_data {
         fn cmp(&self, other: &Player) -> cmp::Ordering {
             (other.lvl as i128 + (other.xp / other.xp_threshold()))
                 .cmp(&(self.lvl as i128 + (self.xp / self.xp_threshold())))
-
-
         }
     }
-
 }
 
 pub mod json_data {
-    use crate::{Serialize, Deserialize, player_data};
+    use crate::{Deserialize, Serialize, player_data};
 
     #[non_exhaustive]
     #[derive(Serialize, Deserialize)]
@@ -362,27 +381,35 @@ pub mod functions {
         Safe,
     }
 
-
     #[should_panic]
-    pub fn overflow_check<F, N>(f: F) -> Overflows where
+    pub fn overflow_check<F, N>(f: F) -> Overflows
+    where
         F: FnOnce() -> N + std::panic::UnwindSafe,
-        N: PartialOrd + FromFloat
+        N: PartialOrd + FromFloat,
     {
-        let result = std::panic::catch_unwind(||f());
+        let result = std::panic::catch_unwind(|| f());
         if result.is_err() {
             return Overflows::Panic;
         }
 
-        if result.unwrap() >= N::from_float(f64::MAX) { Overflows::Float } else { Overflows::Safe }
+        if result.unwrap() >= N::from_float(f64::MAX) {
+            Overflows::Float
+        } else {
+            Overflows::Safe
+        }
     }
 
     trait FromFloat {
         fn from_float(n: f64) -> Self;
     }
     impl FromFloat for f64 {
-        fn from_float(n: f64) -> f64 { n }
+        fn from_float(n: f64) -> f64 {
+            n
+        }
     }
     impl FromFloat for i128 {
-        fn from_float(n: f64) -> i128 { n as i128 }
+        fn from_float(n: f64) -> i128 {
+            n as i128
+        }
     }
 }
