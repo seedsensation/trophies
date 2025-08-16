@@ -40,3 +40,13 @@ macro_rules! test_bigint {
         $(println!("{}",try_into_type!(big_int::BigInt, $v));)*
     }
 }
+
+#[macro_export]
+macro_rules! big_int {
+    ($m:expr, $e:expr) => {
+        BigInt::construct_new($m,$e)
+    };
+    ($m:expr) => {
+        BigInt::new($m)
+    }
+}

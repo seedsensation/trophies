@@ -9,11 +9,14 @@ mod file_management;
 mod modules;
 mod slash_commands;
 mod macros;
+#[cfg(test)]
+mod tests;
+
 
 use modules::functions;
 use modules::json_data;
 use modules::player_data;
-use big_int::ConversionError;
+use big_int::{ConversionError, BigInt};
 
 struct Data {} // user data, stored and accessible everywhere
 
@@ -56,14 +59,6 @@ async fn update_title(ctx: Context<'_>) -> Result<(), Error> {
 
 #[tokio::main]
 async fn main() {
-    // converts each argumnt into a BigInt, and outputs it
-    // test_bigint!(123, 1234, 92835729865723987238572398572398575937,292874, 1, 99999999999999999999999999999999999999, 100.524f64);
-
-    let a = big_int::BigInt::new_from_float(143252.23);
-    // println!("{a}");
-    // println!("{}",a.mantissa);
-
-
 
 
     dotenv().ok();

@@ -9,8 +9,9 @@ pub trait CanLog10 {
 }
 
 pub trait CanConvSafely {
-    fn to_int(&self) -> i128;
-    fn to_float(&self) -> f64;
+    fn to_int(&self) -> Result<i128, ConversionError>;
+    fn to_float(&self) -> Result<f64, ConversionError>;
+    fn to_unsigned(&self) -> Result<u32, ConversionError>;
 }
 
 macro_rules! impl_log10 {
@@ -38,12 +39,27 @@ macro_rules! impl_convtoint {
     (safe for $($t:ty),+) => {
         $(
             impl CanConvSafely for $t {
-                fn to_int(&self) -> i128 {
-                    *self as i128
+                fn to_int(&self) -> Result<i128, ConversionError>{
+                    let converted = *self as i128;
+                    if converted >= i128::MAX {
+                        return Err(ConversionError);
+                    }
+                    Ok(converted)
                 }
-                fn to_float(&self) -> f64 {
-                    *self as f64
-                }
+                fn to_float(&self) -> Result<f64, ConversionError> {
+                    let converted = *self as f64;
+                    if converted >= f64::MAX {
+                        return Err(ConversionError);
+                    }
+                    Ok(converted)
+                 }
+                fn to_unsigned(&self) -> Result<u32, ConversionError> {
+                    let converted = *self as u32;
+                    if converted >= u32::MAX {
+                        return Err(ConversionError);
+                    }
+                    Ok(converted)
+                 }
             }
         )*
     }
@@ -53,7 +69,7 @@ macro_rules! impl_convtoint {
 
 impl_log10!("int", for i8, i16, i32, i64, i128);
 impl_log10!("float", for f32, f64);
-impl_convtoint!(safe for i8, i16, i32, i64, i128, f32, f64);
+impl_convtoint!(safe for i8, i16, i32, i64, i128, f32, f64, u32);
 
 /// An implementation of BigInt, for numbers with a bigger range
 /// than standard 128-bit.
@@ -64,7 +80,7 @@ impl_convtoint!(safe for i8, i16, i32, i64, i128, f32, f64);
 ///
 /// The exponent is the power to which it should be raised -
 /// for 128, the exponent should be 2.
-///
+#[derive(Debug, Clone, Copy)]
 pub struct BigInt {
     pub mantissa: i128,
     pub exponent: i128,
@@ -89,40 +105,59 @@ where N: Add + Sub + Mul + Div + TryFrom<u32> + CanLog10 + CanConvSafely,
 
         // mantissa = first {} digits of val
         let mantissa = match exponent.cmp(&(MANTISSA_LENGTH as i128)) {
-            Ordering::Greater => try_into_err!(i128, val) / (10i128.pow(try_into_err!(u32, exponent) - MANTISSA_LENGTH)),
-            Ordering::Equal => try_into_err!(i128, val),
-            Ordering::Less => (val.to_float() * 10f64.powf(MANTISSA_LENGTH as f64 - exponent as f64)).to_int(),
+            Ordering::Greater => val.to_int().expect("Int too large to process") / (10i128.pow(exponent.to_unsigned().expect("Exponent too large to process") - MANTISSA_LENGTH)),
+            Ordering::Equal => val.to_int().expect("Int too large to process"),
+            Ordering::Less => (val.to_float().expect("Float too large to process") * 10f64.powf(MANTISSA_LENGTH as f64 - exponent as f64)).to_int().unwrap(),
         };
 
         BigInt { exponent, mantissa }
 
     }
 
-    pub fn new_from_float(val: f64) -> BigInt {
-        // exponent = log10(val)
-        let exponent = val.calc_log10();
-        assert!(exponent >= 0);
 
-        // mantissa = first {} digits of val
-        let mantissa = match exponent.cmp(&(MANTISSA_LENGTH as i128)) {
-            Ordering::Greater => val as i128 / (10i128.pow(try_into_err!(u32, exponent) - MANTISSA_LENGTH)),
-            Ordering::Equal => val as i128,
-            Ordering::Less => (val * 10f64.powf(MANTISSA_LENGTH as f64 - exponent as f64)) as i128,
-        };
-
-        BigInt { exponent, mantissa }
-
+    pub fn verify(&self) -> Self {
+        Self::reconstruct(self.mantissa, self.exponent)
     }
 
-    pub fn verify(&mut self) {
-        while self.mantissa.calc_log10() > MANTISSA_LENGTH.into() {
-            self.mantissa /= 10;
-            self.exponent += 1;
+    pub fn reconstruct<M,E>(mantissa: M, exponent: E) -> BigInt
+    where M: CanConvSafely, E: CanConvSafely {
+        Self::construct_internal(mantissa, exponent, false)
+    }
+    pub fn construct_new<M,E>(mantissa: M, exponent: E) -> BigInt
+    where M: CanConvSafely, E: CanConvSafely {
+        Self::construct_internal(mantissa, exponent, true)
+    }
+
+
+
+    fn construct_internal<M,E>(mantissa: M, exponent: E, init: bool) -> BigInt
+    where M: CanConvSafely,
+    E: CanConvSafely {
+
+        let mut mantissa = mantissa.to_float().unwrap();
+        let mut exponent = exponent.to_int().unwrap();
+        while mantissa.calc_log10() > MANTISSA_LENGTH.into() {
+            mantissa /= 10.0;
+            if !init {
+                exponent += 1;
+            }
+
         }
-        while self.mantissa.calc_log10() < MANTISSA_LENGTH.into() {
-            self.mantissa *= 10;
-            self.exponent -= 1;
+        while mantissa.calc_log10() < MANTISSA_LENGTH.into() {
+            mantissa *= 10.0;
+            if !init {
+                exponent -= 1;
+            }
         }
+
+        BigInt {
+            mantissa: mantissa.to_int().unwrap(),
+            exponent: exponent.to_int().unwrap()
+        }
+    }
+
+    pub fn mantissa_as_float(&self) -> f64 {
+        self.mantissa.to_float().unwrap() / MANTISSA_LENGTH.to_float().unwrap()
     }
 }
 
@@ -142,18 +177,59 @@ impl CanLog10 for BigInt{
     }
 }
 
-impl Mul for BigInt {
-    type Output = Self;
-    fn mul(self, rhs: BigInt) -> Self::Output {
-        let mut output = self;
-        output.mantissa *= rhs.mantissa;
-        output.exponent += rhs.exponent;
-        output.verify();
-        output
+/// Ordering
+///
+/// If exponents are equal, sort by mantissa, otherwise sort by exponent.
+impl Ord for BigInt {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.exponent
+            .cmp(&other.exponent)
+            .then(self.mantissa.cmp(&other.mantissa))
     }
 }
 
+impl PartialOrd for BigInt {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
+impl PartialEq for BigInt {
+    fn eq(&self, other: &Self) -> bool {
+        self.mantissa == other.mantissa && self.exponent == other.exponent
+    }
+}
+
+impl Eq for BigInt {}
+
+
+
+/// Addition of two BigInts
+///
+/// If the difference between both exponents > MANTISSA_LENGTH,
+/// the order of magnitude is too great, so there's no point -
+/// return whichever of the two is higher.
+///
+/// Then, shift the mantissa of `rhs.exponent` until
+/// it is between 1 and 10, do the operation, then
+/// shift it back to its original position.
+///
+/// easy, right?
+impl Add for BigInt {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let exponent_difference = self.exponent - rhs.exponent;
+        match exponent_difference.cmp(&0) {
+            // if both exponents are the same, add the mantissas, and then call construct
+            Ordering::Equal => Self::reconstruct(self.mantissa + rhs.mantissa, self.exponent),
+            // if rhs.exponent > self.exponent, shift self.exponent then calculate
+            Ordering::Less => Self::reconstruct(rhs.mantissa + (self.mantissa / 10i128.pow(exponent_difference.abs().to_unsigned().unwrap())), rhs.exponent),
+            // if self.exponent > rhs.exponent, shift rhs.exponent and then calculate
+            Ordering::Greater => Self::reconstruct(self.mantissa + (rhs.mantissa / 10i128.pow(exponent_difference.abs().to_unsigned().unwrap())), self.exponent),
+        }
+    }
+}
 
 /// Output as string
 ///
@@ -171,10 +247,13 @@ impl Mul for BigInt {
 ///
 impl fmt::Display for BigInt {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        println!("{} {}", self.mantissa, self.exponent);
         match self.exponent.cmp(&(MANTISSA_LENGTH as i128)) {
             Ordering::Equal => write!(f, "{}", self.mantissa),
             Ordering::Less => write!(f, "{}", self.mantissa as f64 / 10f64.powf(( MANTISSA_LENGTH - self.exponent as u32 ) as f64)),
-            Ordering::Greater => write!(f,"{:.4}e{}", self.mantissa as f64 / 10i128.pow(MANTISSA_LENGTH) as f64, self.exponent as u32)
+            Ordering::Greater => write!(f,"{}e{}", self.mantissa as f64 / 10i128.pow(MANTISSA_LENGTH) as f64, self.exponent as u32)
         }
     }
 }
+
+
