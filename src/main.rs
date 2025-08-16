@@ -8,6 +8,7 @@ mod commands;
 mod file_management;
 mod modules;
 mod slash_commands;
+mod macros;
 
 use modules::functions;
 use modules::json_data;
@@ -51,28 +52,20 @@ async fn update_title(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[macro_export]
-macro_rules! into_type {
-    ($v:expr, $i:ty) => {
-        Into::<$i>::into($v)
-    }
-}
-
-macro_rules! test_bigint {
-    ($($v:expr),+) => {
-        $(println!("{}",into_type!($v, big_int::BigInt));)*
-    }
-}
-
 
 #[tokio::main]
 async fn main() {
+    // converts each argumnt into a BigInt, and outputs it
+    test_bigint!(123, 1234, 92835729865723987238572398572398575937,292874, 1, i128::MAX);
+
+    let (x,y,z) = into_types!(big_int::BigInt, for 150, 19999999999, 128);
+
+    println!("{x}, {y}, {z}");
+
     dotenv().ok();
     let token = std::env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN");
     let intents = serenity::GatewayIntents::non_privileged();
 
-    // converts each argumnt into a BigInt, and outputs it
-    test_bigint!(123, 1234, 92835729865723987238572398572398575937,292874, 1, i128::MAX);
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![
@@ -80,6 +73,7 @@ async fn main() {
                 slash_commands::achievement(),
                 slash_commands::level(),
                 slash_commands::prestige(),
+                slash_commands::leaderboard()
             ],
             ..Default::default()
         })

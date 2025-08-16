@@ -11,6 +11,7 @@ This is my discord bot for getting achievements with my friends :D
 - [ ]  Balance XP gain & prestige bonuses
 - [ ]  Allow you to edit titles once obtained?
 - [ ]  Allow you to give XP to others as a gift?
+- [ ]  Infinitely scaling numbers
 
 ### Setup
 It should install the dependencies itself with `cargo build` or `cargo run`.  

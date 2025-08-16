@@ -2,7 +2,7 @@
 //! then add a second function to [slash_commands], that points
 //! back here. That'll allow you to document it separately.
 
-use crate::{Context, Error, cmp, file_management, functions, player_data, serenity};
+use crate::{Context, Error, file_management, functions, player_data, serenity};
 
 /// Reset your progress, with an advantage.
 ///
@@ -321,39 +321,39 @@ pub async fn achievement(
 }
 
 /// See who's at the top.
-pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
+pub async fn leaderboard(_ctx: Context<'_>) -> Result<(), Error> {
     // Formatted as a list of the top 5 players.
     let mut players = file_management::load_players();
 
-    let pages = players.len() / 5;
+    let _pages = players.len() / 5;
 
     players.sort();
 
     Ok(())
 }
 
-/// Edit your existing titles
-pub async fn update_title(ctx: Context<'_>) -> Result<(), Error> {
-    let players = file_management::load_players();
-    let p = players
-        .iter()
-        .find(|x| x.user_id == ctx.author().id.get())
-        .expect("User not present in Players despite verification")
-        .clone();
-
-    if p.title_segments.len() == 0 {
-        ctx.send(
-            poise::CreateReply::default()
-                .content("You do not have a title to edit.")
-                .ephemeral(true),
-        )
-        .await?;
-        return Ok(());
-    }
-    // let menu = serenity::CreateActionRow::SelectMenu(
-    //     CreateSelectMenu::new("selected_title"),
-
-    // );
-
-    Ok(())
-}
+// /// Edit your existing titles
+// pub async fn update_title(ctx: Context<'_>) -> Result<(), Error> {
+//     let players = file_management::load_players();
+//     let p = players
+//         .iter()
+//         .find(|x| x.user_id == ctx.author().id.get())
+//         .expect("User not present in Players despite verification")
+//         .clone();
+//
+//     if p.title_segments.len() == 0 {
+//         ctx.send(
+//             poise::CreateReply::default()
+//                 .content("You do not have a title to edit.")
+//                 .ephemeral(true),
+//         )
+//         .await?;
+//         return Ok(());
+//     }
+//     // let menu = serenity::CreateActionRow::SelectMenu(
+//     //     CreateSelectMenu::new("selected_title"),
+//
+//     // );
+//
+//     Ok(())
+// }

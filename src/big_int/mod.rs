@@ -1,7 +1,6 @@
 use std::{fmt, ops::{Add, Mul, Div, Sub}, cmp::Ordering};
-use crate::into_type;
+use crate::{into_type};
 
-const BIGINT_DECIMAL_PLACES: u32 = 3;
 const MANTISSA_LENGTH: u32 = 8;
 
 
@@ -29,6 +28,7 @@ macro_rules! impl_log10 {
         )*
     }
 }
+
 
 
 impl_log10!("int", for i8, i16, i32, i64, i128);
@@ -67,15 +67,17 @@ where N: Add + Sub + Mul + Div + From<u32> + From<i128> + Into<i128> + CanLog10 
 
         // mantissa = first {} digits of val
         let mantissa = match exponent.cmp(&(MANTISSA_LENGTH as i128)) {
-            Ordering::Greater => into_type!(val, i128) / (10i128.pow(exponent as u32 - MANTISSA_LENGTH)),
-            Ordering::Equal => into_type!(val, i128),
-            Ordering::Less => into_type!(val, i128) * 10i128.pow(MANTISSA_LENGTH - exponent as u32),
+            Ordering::Greater => into_type!(i128, val) / (10i128.pow(exponent as u32 - MANTISSA_LENGTH)),
+            Ordering::Equal => into_type!(i128, val),
+            Ordering::Less => into_type!(i128, val) * 10i128.pow(MANTISSA_LENGTH - exponent as u32),
         };
 
         BigInt { exponent, mantissa }
 
     }
 }
+
+
 
 /// Output as string
 ///

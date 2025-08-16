@@ -290,7 +290,7 @@ pub mod player_data {
     ///
     /// Currently unused, as it does not verify the player's presence beforehand,
     /// making it less safe than just running it manually.
-    pub fn find_player_by_id(id: u64) -> Player {
+    pub fn _find_player_by_id(id: u64) -> Player {
         let players = file_management::load_players();
         players
             .iter()
@@ -399,7 +399,7 @@ pub mod functions {
         }
     }
 
-    trait FromFloat {
+    pub trait FromFloat {
         fn from_float(n: f64) -> Self;
     }
     impl FromFloat for f64 {
