@@ -1,5 +1,8 @@
 use std::{fmt, ops::{Add, Mul, Div, Sub}, cmp::Ordering};
 use crate::{try_into_err};
+mod ord_eq;
+mod add_sub;
+mod mul_div;
 
 const MANTISSA_LENGTH: u32 = 8;
 
@@ -40,6 +43,7 @@ macro_rules! impl_convtoint {
         $(
             impl CanConvSafely for $t {
                 fn to_int(&self) -> Result<i128, ConversionError>{
+                    println!("{}",*self);
                     let converted = *self as i128;
                     if converted >= i128::MAX {
                         return Err(ConversionError);
@@ -64,7 +68,6 @@ macro_rules! impl_convtoint {
         )*
     }
 }
-
 
 
 impl_log10!("int", for i8, i16, i32, i64, i128);
@@ -157,7 +160,7 @@ where N: Add + Sub + Mul + Div + TryFrom<u32> + CanLog10 + CanConvSafely,
     }
 
     pub fn mantissa_as_float(&self) -> f64 {
-        self.mantissa.to_float().unwrap() / MANTISSA_LENGTH.to_float().unwrap()
+        self.mantissa.to_float().unwrap() / 10f64.powf(MANTISSA_LENGTH as f64)
     }
 }
 
@@ -177,59 +180,9 @@ impl CanLog10 for BigInt{
     }
 }
 
-/// Ordering
-///
-/// If exponents are equal, sort by mantissa, otherwise sort by exponent.
-impl Ord for BigInt {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.exponent
-            .cmp(&other.exponent)
-            .then(self.mantissa.cmp(&other.mantissa))
-    }
-}
-
-impl PartialOrd for BigInt {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for BigInt {
-    fn eq(&self, other: &Self) -> bool {
-        self.mantissa == other.mantissa && self.exponent == other.exponent
-    }
-}
-
-impl Eq for BigInt {}
 
 
 
-/// Addition of two BigInts
-///
-/// If the difference between both exponents > MANTISSA_LENGTH,
-/// the order of magnitude is too great, so there's no point -
-/// return whichever of the two is higher.
-///
-/// Then, shift the mantissa of `rhs.exponent` until
-/// it is between 1 and 10, do the operation, then
-/// shift it back to its original position.
-///
-/// easy, right?
-impl Add for BigInt {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        let exponent_difference = self.exponent - rhs.exponent;
-        match exponent_difference.cmp(&0) {
-            // if both exponents are the same, add the mantissas, and then call construct
-            Ordering::Equal => Self::reconstruct(self.mantissa + rhs.mantissa, self.exponent),
-            // if rhs.exponent > self.exponent, shift self.exponent then calculate
-            Ordering::Less => Self::reconstruct(rhs.mantissa + (self.mantissa / 10i128.pow(exponent_difference.abs().to_unsigned().unwrap())), rhs.exponent),
-            // if self.exponent > rhs.exponent, shift rhs.exponent and then calculate
-            Ordering::Greater => Self::reconstruct(self.mantissa + (rhs.mantissa / 10i128.pow(exponent_difference.abs().to_unsigned().unwrap())), self.exponent),
-        }
-    }
-}
 
 /// Output as string
 ///
@@ -256,4 +209,23 @@ impl fmt::Display for BigInt {
     }
 }
 
+impl CanConvSafely for BigInt {
+    fn to_float(&self) -> Result<f64, ConversionError> {
+        println!("Converting to Float");
+        if *self > BigInt::new(f64::MAX) {
+            Err(ConversionError)
+        } else {
+            Ok(self.mantissa_as_float() * 10f64.powf(self.exponent as f64))
+        }
+    }
 
+    fn to_int(&self) -> Result<i128, ConversionError> {
+        todo!()
+
+    }
+
+    fn to_unsigned(&self) -> Result<u32, ConversionError> {
+        todo!()
+    }
+
+}

@@ -16,7 +16,7 @@ mod tests;
 use modules::functions;
 use modules::json_data;
 use modules::player_data;
-use big_int::{ConversionError, BigInt};
+use big_int::BigInt;
 
 struct Data {} // user data, stored and accessible everywhere
 
@@ -60,6 +60,13 @@ async fn update_title(ctx: Context<'_>) -> Result<(), Error> {
 #[tokio::main]
 async fn main() {
 
+    // testing division
+    assert_eq!(big_int!(150)
+               /
+               big_int!(2),
+            // =
+               big_int!(75)
+    );
 
     dotenv().ok();
     let token = std::env::var("DISCORD_TOKEN").expect("Missing DISCORD_TOKEN");
